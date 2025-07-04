@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+
+{% block title %}Timetable{% endblock %}
+
+{% block content %}
+<h2>Class Timetable</h2>
+<table>
+    {% for day, schedules in timetable.items %}
+    <tr>
+        <th>{{ day|title }}</th>
+        {% for schedule in schedules %}
+        <td>
+            {{ schedule.time_slot.start_time }} - {{ schedule.time_slot.end_time }}<br>
+            {{ schedule.subject.name }}<br>
+            {{ schedule.classroom.room_number }}<br>
+            {{ schedule.faculty.user.get_short_name }}
+        </td>
+        {% endfor %}
+    </tr>
+    {% endfor %}
+</table>
+{% endblock %}

@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<h2>Welcome, {{ student.user.get_full_name }}</h2>
+<div>
+    <h3>Current Semester: {{ current_semester }}</h3>
+    <h4>Current Subjects ({{ current_enrollments.count }}):</h4>
+    <ul>
+        {% for enrollment in current_enrollments %}
+        <li>{{ enrollment.subject.name }}</li>
+        {% endfor %}
+    </ul>
+</div>
+
+<!-- Add other dashboard sections -->
+{% endblock %}

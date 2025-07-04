@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+
+{% block title %}Profile{% endblock %}
+
+{% block content %}
+<h2>Student Profile</h2>
+<form method="post">
+    {% csrf_token %}
+    <!-- Add profile form fields here -->
+    <button type="submit">Update Profile</button>
+</form>
+{% endblock %}
