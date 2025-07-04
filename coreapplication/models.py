@@ -48,7 +48,7 @@ class Course(models.Model):
     code = models.CharField(max_length=10, unique=True)
     course_type = models.CharField(max_length=20, choices=COURSE_TYPES)
     department = models.ForeignKey(Department, on_delete=models.CASCADE, related_name='courses')
-    duration_years = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
+    duration_years = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)]) # total sem per year
     total_semesters = models.IntegerField(validators=[MinValueValidator(2), MaxValueValidator(10)])
     description = models.TextField(blank=True)
     fees_per_semester = models.DecimalField(max_digits=10, decimal_places=2)
@@ -56,11 +56,12 @@ class Course(models.Model):
     
     def __str__(self):
         return f"{self.name} ({self.code})"
-
+#units
 class Subject(models.Model):
     name = models.CharField(max_length=100)
     code = models.CharField(max_length=15, unique=True)
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='subjects')
+    year = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)], default=1)  # 🔹 New field
     semester = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(10)])
     credits = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(10)])
     theory_hours = models.IntegerField(default=0)

@@ -53,13 +53,18 @@ class CourseAdmin(admin.ModelAdmin):
 # Subject Admin
 @admin.register(Subject)
 class SubjectAdmin(admin.ModelAdmin):
-    list_display = ('name', 'code', 'course', 'semester', 'credits', 'theory_hours', 'practical_hours', 'is_elective')
+    list_display = (
+        'name', 'code', 'course', 'year', 'semester',
+        'credits', 'theory_hours', 'practical_hours', 'is_elective'
+    )
     list_filter = ('course', 'semester', 'is_elective', 'credits')
     search_fields = ('name', 'code')
     list_editable = ('is_elective',)
     raw_id_fields = ('course',)
     filter_horizontal = ('prerequisites',)
 
+    # 🔽 Order subjects by year ASC then semester ASC
+    ordering = ('year', 'semester', 'name')
 # Faculty Admin
 @admin.register(Faculty)
 class FacultyAdmin(admin.ModelAdmin):
