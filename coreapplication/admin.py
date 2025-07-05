@@ -377,6 +377,55 @@ class PlacementApplicationAdmin(admin.ModelAdmin):
         return obj.student.user.get_full_name()
     get_student_name.short_description = 'Student Name'
 
+from django.contrib import admin
+from django.utils.html import format_html
+from .models import StudentComment
+
+@admin.register(StudentComment)
+class StudentCommentAdmin(admin.ModelAdmin):
+    list_display = ('student', 'truncated_comment', 'created_at', 'is_resolved', 'admin_action')
+    list_filter = ('is_resolved', 'created_at', 'student__course')
+    search_fields = ('student__student_id', 'student__first_name', 'student__last_name', 'comment')
+    list_per_page = 20
+    date_hierarchy = 'created_at'
+    actions = ['mark_as_resolved', 'mark_as_unresolved']
+    
+    fieldsets = (
+        ('Student Information', {
+            'fields': ('student',)
+        }),
+        ('Comment Details', {
+            'fields': ('comment', 'is_resolved')
+        }),
+        ('Admin Response', {
+            'fields': ('admin_response', 'responded_by'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def truncated_comment(self, obj):
+        return obj.comment[:50] + '...' if len(obj.comment) > 50 else obj.comment
+    truncated_comment.short_description = 'Comment'
+    
+    def admin_action(self, obj):
+        if obj.is_resolved:
+            return format_html('<span style="color:green;">Resolved</span>')
+        return format_html('<a href="/admin/your_app/studentcomment/{}/change/">Respond</a>', obj.id)
+    admin_action.short_description = 'Action'
+    
+    def mark_as_resolved(self, request, queryset):
+        queryset.update(is_resolved=True, responded_by=request.user)
+    mark_as_resolved.short_description = "Mark selected comments as resolved"
+    
+    def mark_as_unresolved(self, request, queryset):
+        queryset.update(is_resolved=False)
+    mark_as_unresolved.short_description = "Mark selected comments as unresolved"
+    
+    def save_model(self, request, obj, form, change):
+        if 'admin_response' in form.changed_data and not obj.responded_by:
+            obj.responded_by = request.user
+        super().save_model(request, obj, form, change)
+
 # Customize Admin Site
 admin.site.site_header = "Polytechnic Management System"
 admin.site.site_title = "Polytechnic Admin"

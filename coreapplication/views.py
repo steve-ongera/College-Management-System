@@ -806,3 +806,90 @@ def change_password(request):
             return redirect('student_login')
     
     return render(request, 'student/change_password.html')
+
+
+from .models import Student, StudentComment
+from .forms import StudentCommentForm
+
+@login_required
+def student_comments(request):
+    student = get_object_or_404(Student, user=request.user)
+    
+    if request.method == 'POST':
+        form = StudentCommentForm(request.POST)
+        if form.is_valid():
+            comment = form.save(commit=False)
+            comment.student = student
+            comment.save()
+            messages.success(request, 'Your comment has been submitted successfully!')
+            return redirect('student_comments')
+    else:
+        form = StudentCommentForm()
+    
+    comments = StudentComment.objects.filter(student=student).order_by('-created_at')
+    
+    context = {
+        'student': student,
+        'form': form,
+        'comments': comments,
+    }
+    return render(request, 'comments/comments.html', context)
+
+@login_required
+def faqs(request): 
+    return render(request, 'settings/faqs.html')
+
+
+
+from django.views.decorators.http import require_POST
+import json
+from .models import CommonQuestion, QuickLink
+
+@login_required
+def virtual_assistant(request):
+    # Get the current user
+    user = request.user
+    
+    # Fetch data from database models
+    common_questions = CommonQuestion.objects.all()
+    quick_links = QuickLink.objects.all()
+    
+    # Prepare context
+    context = {
+        'user': user,
+        'common_questions': common_questions,
+        'quick_links': quick_links,
+    }
+    
+    return render(request, 'assistant/virtual_assistant.html', context)
+
+@login_required
+@require_POST
+def process_assistant_query(request):
+    try:
+        data = json.loads(request.body)
+        query = data.get('query', '').lower()
+        
+        # Simple response logic - would normally integrate with NLP/AI
+        responses = {
+            'results': 'Exam results are available on the student portal under "Academic Records".',
+            'lecture': 'Lecture materials can be found on the LMS or by contacting your lecturer.',
+            'hostel': 'Hostel applications open twice a year. Check the accommodation office for dates.',
+            'fee': 'Fee payment can be made via MPesa or bank deposit. See the finance office for details.',
+            'library': 'The library is open from 8am to 9pm weekdays, 9am to 4pm weekends.',
+            'default': "I'm sorry, I didn't understand that. Could you rephrase your question?"
+        }
+        
+        response_text = responses['default']
+        for keyword in responses:
+            if keyword in query and keyword != 'default':
+                response_text = responses[keyword]
+                break
+        
+        return JsonResponse({'response': response_text})
+    
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    
+
+

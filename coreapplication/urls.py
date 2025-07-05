@@ -37,6 +37,10 @@ urlpatterns = [
     # Events
     path('events/', views.student_events, name='student_events'),
     path('events/register/<int:event_id>/', views.register_event, name='register_event'),
+    path('comments/', views.student_comments, name='student_comments'),
+    path('faqs/', views.faqs , name="faqs"),
+    path('virtual_assistant', views.virtual_assistant , name="virtual_assistant"),
+    path('process-query/', views.process_assistant_query, name='process_assistant_query'),
     
     # Documents
     path('documents/', views.student_documents, name='student_documents'),
