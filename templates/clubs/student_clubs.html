@@ -1,0 +1,293 @@
+{% extends 'base/base.html'%}
+{% load club_tags %}
+{% load static %}
+
+{% block content %}
+<div class="pagetitle">
+    <h1><i class="bi bi-people-fill me-2"></i>Student Clubs</h1>
+    <nav>
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'admin_dashboard' %}"><i class="bi bi-house-door"></i> Home</a></li>
+            <li class="breadcrumb-item active">Clubs</li>
+        </ol>
+    </nav>
+</div><!-- End Page Title -->
+
+<section class="section">
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-university-primary text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0"><i class="bi bi-collection me-2"></i>Available Clubs</h5>
+                        <span class="badge bg-light text-dark">
+                            {{ clubs|length }} club{{ clubs|length|pluralize }}
+                        </span>
+                    </div>
+                </div>
+                
+                <div class="card-body">
+                    <!-- Category Filters -->
+                    <div class="mb-4">
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-outline-university active" data-filter="all">All</button>
+                            {% for value, label in categories.items %}
+                            <button type="button" class="btn btn-outline-university" data-filter="{{ value }}">{{ label }}</button>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <!-- Clubs Grid -->
+                    <div class="row" id="clubs-container">
+                        {% for club in clubs %}
+                        <div class="col-md-6 col-lg-4 mb-4 club-card" data-category="{{ club.category }}">
+                            <div class="card h-100 border-0 shadow-sm">
+                                <div class="card-header bg-university-light d-flex justify-content-between align-items-center">
+                                    <h5 class="card-title mb-0">{{ club.name }}</h5>
+                                    <span class="badge bg-{% if club.category == 'academic' %}info{% elif club.category == 'sports' %}danger{% elif club.category == 'cultural' %}warning{% elif club.category == 'religious' %}success{% else %}secondary{% endif %}">
+                                        {{ club.get_category_display }}
+                                    </span>
+                                </div>
+                                <div class="card-body">
+                                    <div class="text-center mb-3">
+                                        {% if club.logo %}
+                                        <img src="{{ club.logo.url }}" alt="{{ club.name }} logo" class="img-fluid rounded-circle" style="width: 100px; height: 100px; object-fit: cover;">
+                                        {% else %}
+                                        <div class="rounded-circle bg-university-light d-flex align-items-center justify-content-center" style="width: 100px; height: 100px; margin: 0 auto;">
+                                            <i class="bi bi-people-fill fs-1 text-muted"></i>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    <p class="card-text">{{ club.description|truncatewords:25 }}</p>
+                                    <ul class="list-group list-group-flush mb-3">
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            <span><i class="bi bi-person-badge me-2"></i>Chairperson</span>
+                                            <span>{{ club.chairperson.get_full_name|default:"Not assigned" }}</span>
+                                        </li>
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            <span><i class="bi bi-telephone me-2"></i>Contact</span>
+                                            <span>{{ club.contact_phone }}</span>
+                                        </li>
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            <span><i class="bi bi-people me-2"></i>Members</span>
+                                            <span>{{ club.members.count }}</span>
+                                        </li>
+                                    </ul>
+                                </div>
+                                <div class="card-footer bg-transparent d-flex justify-content-between">
+                                    <button class="btn btn-sm btn-outline-university" data-bs-toggle="modal" data-bs-target="#clubDetailsModal{{ club.id }}">
+                                        <i class="bi bi-eye me-1"></i> Details
+                                    </button>
+                                    {% if request.user in club.members.all %}
+                                    <button class="btn btn-sm btn-danger" onclick="leaveClub({{ club.id }})">
+                                        <i class="bi bi-door-closed me-1"></i> Leave
+                                    </button>
+                                    {% else %}
+                                    <button class="btn btn-sm btn-university" onclick="joinClub({{ club.id }})">
+                                        <i class="bi bi-door-open me-1"></i> Join
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Club Details Modal -->
+                        <div class="modal fade" id="clubDetailsModal{{ club.id }}" tabindex="-1" aria-labelledby="clubDetailsModalLabel{{ club.id }}" aria-hidden="true">
+                            <div class="modal-dialog modal-lg">
+                                <div class="modal-content">
+                                    <div class="modal-header bg-university-primary text-white">
+                                        <h5 class="modal-title" id="clubDetailsModalLabel{{ club.id }}">{{ club.name }}</h5>
+                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <div class="row">
+                                            <div class="col-md-4 text-center">
+                                                {% if club.logo %}
+                                                <img src="{{ club.logo.url }}" alt="{{ club.name }} logo" class="img-fluid rounded mb-3" style="max-height: 200px;">
+                                                {% else %}
+                                                <div class="bg-university-light rounded d-flex align-items-center justify-content-center mb-3" style="height: 200px;">
+                                                    <i class="bi bi-people-fill fs-1 text-muted"></i>
+                                                </div>
+                                                {% endif %}
+                                                <h5>Club Information</h5>
+                                                <ul class="list-group">
+                                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                        <span>Category:</span>
+                                                        <span class="badge bg-{% if club.category == 'academic' %}info{% elif club.category == 'sports' %}danger{% elif club.category == 'cultural' %}warning{% elif club.category == 'religious' %}success{% else %}secondary{% endif %}">
+                                                            {{ club.get_category_display }}
+                                                        </span>
+                                                    </li>
+                                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                        <span>Chairperson:</span>
+                                                        <span>{{ club.chairperson.get_full_name|default:"Not assigned" }}</span>
+                                                    </li>
+                                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                        <span>Contact:</span>
+                                                        <span>{{ club.contact_phone }}</span>
+                                                    </li>
+                                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                        <span>Email:</span>
+                                                        <span>{{ club.email }}</span>
+                                                    </li>
+                                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                        <span>Membership Fee:</span>
+                                                        <span>Ksh. {{ club.membership_fee }}</span>
+                                                    </li>
+                                                </ul>
+                                            </div>
+                                            <div class="col-md-8">
+                                                <h5>About the Club</h5>
+                                                <p>{{ club.description }}</p>
+                                                
+                                                <h5 class="mt-4">Meeting Schedule</h5>
+                                                <p>{{ club.meeting_schedule }}</p>
+                                                
+                                                <h5 class="mt-4">Executive Committee</h5>
+                                                <div class="table-responsive">
+                                                    <table class="table table-sm">
+                                                        <thead class="bg-university-light">
+                                                            <tr>
+                                                                <th>Position</th>
+                                                                <th>Name</th>
+                                                                <th>Contact</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {% for member in club_executives|get_item:club.id %}
+                                                            <tr>
+                                                                <td>{{ member.clubmembership_set.get.position|default:"Member" }}</td>
+                                                                <td>{{ member.get_full_name }}</td>
+                                                                <td>{{ member.profile.phone_number|default:"-" }}</td>
+                                                            </tr>
+                                                            {% empty %}
+                                                            <tr>
+                                                                <td colspan="3" class="text-center text-muted">No executive members yet</td>
+                                                            </tr>
+                                                            {% endfor %}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                        {% if request.user in club.members.all %}
+                                        <button type="button" class="btn btn-danger" onclick="leaveClub({{ club.id }})" data-bs-dismiss="modal">
+                                            <i class="bi bi-door-closed me-1"></i> Leave Club
+                                        </button>
+                                        {% else %}
+                                        <button type="button" class="btn btn-university" onclick="joinClub({{ club.id }})" data-bs-dismiss="modal">
+                                            <i class="bi bi-door-open me-1"></i> Join Club
+                                        </button>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div class="col-12">
+                            <div class="alert alert-info">No active clubs available at the moment.</div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                
+                <div class="card-footer bg-university-light">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-muted">
+                            <i class="bi bi-info-circle me-1"></i>
+                            Clubs are updated regularly. Check back for new opportunities.
+                        </small>
+                        <span class="badge bg-university-primary">
+                            {% now "M d, Y" %}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<style>
+    .club-card {
+        transition: transform 0.3s ease;
+    }
+    
+    .club-card:hover {
+        transform: translateY(-5px);
+    }
+    
+    .category-badge {
+        font-size: 0.75rem;
+    }
+    
+    .modal-header {
+        border-bottom: 2px solid rgba(255,255,255,0.1);
+    }
+    
+    .modal-footer {
+        border-top: 1px solid rgba(0,0,0,0.1);
+    }
+</style>
+
+<script>
+// Club filtering by category
+document.querySelectorAll('[data-filter]').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const filter = this.dataset.filter;
+        
+        // Update active button
+        document.querySelectorAll('[data-filter]').forEach(b => {
+            b.classList.remove('active');
+        });
+        this.classList.add('active');
+        
+        // Filter clubs
+        document.querySelectorAll('.club-card').forEach(card => {
+            if (filter === 'all' || card.dataset.category === filter) {
+                card.style.display = 'block';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    });
+});
+
+function joinClub(clubId) {
+    fetch(`/clubs/join/${clubId}/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => {
+        if (response.ok) {
+            location.reload();
+        } else {
+            alert('Failed to join club');
+        }
+    });
+}
+
+function leaveClub(clubId) {
+    if (confirm('Are you sure you want to leave this club?')) {
+        fetch(`/clubs/leave/${clubId}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => {
+            if (response.ok) {
+                location.reload();
+            } else {
+                alert('Failed to leave club');
+            }
+        });
+    }
+}
+</script>
+{% endblock %}

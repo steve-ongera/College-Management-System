@@ -474,6 +474,19 @@ class ClubEventAdmin(admin.ModelAdmin):
     readonly_fields = ('created_at', 'updated_at')
     ordering = ('-start_datetime',)
 
+
+from django.contrib import admin
+from .models import NewsArticle
+
+@admin.register(NewsArticle)
+class NewsArticleAdmin(admin.ModelAdmin):
+    list_display = ('title', 'category', 'author', 'publish_date', 'is_published')
+    list_filter = ('category', 'is_published', 'publish_date')
+    search_fields = ('title', 'summary', 'content', 'author__username')
+    date_hierarchy = 'publish_date'
+    readonly_fields = ('created_at', 'updated_at')
+    ordering = ('-publish_date',)
+
 # Customize Admin Site
 admin.site.site_header = "Polytechnic Management System"
 admin.site.site_title = "Polytechnic Admin"

@@ -1104,3 +1104,83 @@ def process_assistant_query(request):
     
 
 
+@login_required
+def student_clubs(request):
+    clubs = StudentClub.objects.filter(is_active=True).order_by('name')
+    user_memberships = ClubMembership.objects.filter(student=request.user, is_active=True)
+    
+    # Create a dictionary to hold executive members for each club
+    club_executives = {}
+    for club in clubs:
+        club_executives[club.id] = club.members.filter(is_executive=True)
+    
+    context = {
+        'clubs': clubs,
+        'user_memberships': user_memberships,
+        'categories': dict(StudentClub.CATEGORY_CHOICES),
+        'club_executives': club_executives
+    }
+    return render(request, 'clubs/student_clubs.html', context)
+
+
+@login_required
+def join_club(request, club_id):
+    club = StudentClub.objects.get(id=club_id)
+    if not ClubMembership.objects.filter(student=request.user, club=club).exists():
+        ClubMembership.objects.create(student=request.user, club=club)
+    return redirect('student_clubs')
+
+@login_required
+def leave_club(request, club_id):
+    membership = ClubMembership.objects.filter(student=request.user, club_id=club_id).first()
+    if membership:
+        membership.delete()
+    return redirect('student_clubs')
+
+
+@login_required
+def club_events(request, club_id=None):
+    now = timezone.now()
+    
+    # Get events based on club_id or all clubs
+    if club_id:
+        club = StudentClub.objects.get(id=club_id)
+        events = ClubEvent.objects.filter(club=club)
+    else:
+        club = None
+        events = ClubEvent.objects.all()
+    
+    # Categorize events
+    upcoming_events = events.filter(start_datetime__gt=now).order_by('start_datetime')
+    latest_events = events.filter(start_datetime__lte=now, end_datetime__gte=now).order_by('start_datetime')
+    past_events = events.filter(end_datetime__lt=now).order_by('-start_datetime')[:10]  # Last 10 past events
+    
+    context = {
+        'club': club,
+        'upcoming_events': upcoming_events,
+        'latest_events': latest_events,
+        'past_events': past_events,
+    }
+    
+    return render(request, 'events/club_events.html', context)
+
+
+@login_required
+def student_news(request):
+    # Get all news articles, ordered by most recent first
+    news_articles = NewsArticle.objects.filter(is_published=True).order_by('-publish_date')
+    
+    context = {
+        'news_articles': news_articles,
+        'featured_article': news_articles.first() if news_articles.exists() else None,
+        'regular_articles': news_articles[1:4] if news_articles.count() > 1 else [],
+        'older_articles': news_articles[4:] if news_articles.count() > 4 else []
+    }
+    return render(request, 'news/student_news.html', context)
+
+
+
+
+    
+
+

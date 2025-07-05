@@ -47,4 +47,11 @@ urlpatterns = [
     
     # Notifications
     path('notifications/', views.student_notifications, name='student_notifications'),
+
+    path('news/', views.student_news, name='student_news'),
+    path('clubs/', views.student_clubs, name='student_clubs'),
+    path('clubs/join/<int:club_id>/', views.join_club, name='join_club'),
+    path('clubs/leave/<int:club_id>/', views.leave_club, name='leave_club'),
+    path('club-events/', views.club_events, name='club_events'),
+    path('club-events/<int:club_id>/', views.club_events, name='club_events_detail'),
 ]

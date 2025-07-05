@@ -670,3 +670,35 @@ class ClubEvent(models.Model):
             self.status = 'completed'
         super().save(*args, **kwargs)
 
+
+
+
+class NewsArticle(models.Model):
+    CATEGORY_CHOICES = [
+        ('academic', 'Academic'),
+        ('event', 'Events'),
+        ('announcement', 'Announcements'),
+        ('sports', 'Sports'),
+        ('general', 'General'),
+    ]
+    
+    title = models.CharField(max_length=200)
+    summary = models.TextField()
+    content = models.TextField()
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default='general')
+    image = models.ImageField(upload_to='news_images/', blank=True, null=True)
+    author = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    publish_date = models.DateTimeField(default=timezone.now)
+    is_published = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return self.title
+    
+    class Meta:
+        ordering = ['-publish_date']
+        verbose_name = 'News Article'
+        verbose_name_plural = 'News Articles'
+
+
