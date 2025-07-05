@@ -138,22 +138,198 @@ def student_profile(request):
     }
     return render(request, 'student/profile.html', context)
 
-# Academic Views
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.db import transaction
+from django.utils import timezone
+import logging
+
+# Set up logging to help debug
+logger = logging.getLogger(__name__)
+
 @login_required
 def student_subjects(request):
     student = get_object_or_404(Student, user=request.user)
     current_semester = Semester.objects.filter(is_current=True).first()
     
-    enrollments = Enrollment.objects.filter(
+    # Handle POST request for subject registration
+    if request.method == 'POST':
+        logger.info(f"POST request received for student: {student.user.username}")
+        
+        selected_subjects = request.POST.getlist('subjects')
+        logger.info(f"Selected subjects: {selected_subjects}")
+        
+        if not selected_subjects:
+            messages.error(request, 'Please select at least one subject to register.')
+            logger.warning("No subjects selected")
+            return redirect('student_subjects')
+        
+        if not current_semester:
+            messages.error(request, 'No active semester found. Please contact administration.')
+            logger.error("No active semester found")
+            return redirect('student_subjects')
+        
+        try:
+            with transaction.atomic():
+                # Check if student already has enrollments for this semester
+                existing_enrollments = Enrollment.objects.filter(
+                    student=student,
+                    semester=current_semester,
+                    is_active=True
+                )
+                
+                logger.info(f"Existing enrollments count: {existing_enrollments.count()}")
+                
+                if existing_enrollments.exists():
+                    messages.error(request, 'You are already registered for subjects this semester.')
+                    logger.warning("Student already has enrollments")
+                    return redirect('student_subjects')
+                
+                # Get selected subjects and validate them
+                subjects_to_register = Subject.objects.filter(
+                    id__in=selected_subjects,
+                    course=student.course,
+                    is_active=True
+                )
+                
+                logger.info(f"Valid subjects found: {subjects_to_register.count()}")
+                logger.info(f"Subject IDs: {[s.id for s in subjects_to_register]}")
+                
+                if len(subjects_to_register) != len(selected_subjects):
+                    messages.error(request, 'Some selected subjects are not valid for registration.')
+                    logger.error("Mismatch between selected and valid subjects")
+                    return redirect('student_subjects')
+                
+                # Check prerequisites for each subject
+                for subject in subjects_to_register:
+                    logger.info(f"Checking prerequisites for subject: {subject.code}")
+                    if subject.prerequisites.exists():
+                        for prereq in subject.prerequisites.all():
+                            prereq_enrollment = Enrollment.objects.filter(
+                                student=student,
+                                subject=prereq,
+                                is_active=True
+                            ).first()
+                            
+                            if not prereq_enrollment:
+                                error_msg = f'You must complete {prereq.code} - {prereq.name} before registering for {subject.code}.'
+                                messages.error(request, error_msg)
+                                logger.error(f"Prerequisite not met: {prereq.code} for {subject.code}")
+                                return redirect('student_subjects')
+                
+                # Create enrollments for selected subjects
+                enrollments_created = []
+                for subject in subjects_to_register:
+                    logger.info(f"Creating enrollment for subject: {subject.code}")
+                    
+                    # Check if enrollment already exists (double check)
+                    existing = Enrollment.objects.filter(
+                        student=student,
+                        subject=subject,
+                        semester=current_semester
+                    ).first()
+                    
+                    if existing:
+                        logger.warning(f"Enrollment already exists for {subject.code}")
+                        # Update existing enrollment to active
+                        existing.is_active = True
+                        existing.enrollment_date = timezone.now().date()
+                        existing.save()
+                        enrollments_created.append(existing)
+                    else:
+                        # Create new enrollment
+                        enrollment = Enrollment.objects.create(
+                            student=student,
+                            subject=subject,
+                            semester=current_semester,
+                            enrollment_date=timezone.now().date(),
+                            is_active=True
+                        )
+                        enrollments_created.append(enrollment)
+                        logger.info(f"Created enrollment with ID: {enrollment.id}")
+                
+                logger.info(f"Total enrollments created: {len(enrollments_created)}")
+                
+                messages.success(
+                    request, 
+                    f'Successfully registered for {len(enrollments_created)} subjects.'
+                )
+                
+        except Exception as e:
+            logger.error(f"Error during registration: {str(e)}")
+            messages.error(request, f'An error occurred during registration: {str(e)}')
+            return redirect('student_subjects')
+        
+        return redirect('student_subjects')
+    
+    # GET request handling
+    logger.info(f"GET request for student: {student.user.username}")
+    
+    # Get all enrollments grouped by year and semester
+    all_enrollments = Enrollment.objects.filter(
         student=student,
-        semester=current_semester,
         is_active=True
-    ).select_related('subject', 'subject__course')
+    ).select_related('subject', 'semester').order_by('subject__year', 'subject__semester')
+    
+    # Organize enrollments by year and semester
+    enrollment_groups = {}
+    for enrollment in all_enrollments:
+        year = enrollment.subject.year
+        semester = enrollment.subject.semester
+        if year not in enrollment_groups:
+            enrollment_groups[year] = {}
+        if semester not in enrollment_groups[year]:
+            enrollment_groups[year][semester] = []
+        enrollment_groups[year][semester].append(enrollment)
+    
+    # Get available subjects for current year and semester if no enrollments for current semester
+    available_subjects = []
+    show_registration = False
+    
+    if current_semester:
+        # Check if student has enrollments for current semester
+        current_semester_enrollments = all_enrollments.filter(semester=current_semester)
+        
+        if not current_semester_enrollments.exists():
+            available_subjects = Subject.objects.filter(
+                course=student.course,
+                year=student.current_year,
+                semester=student.current_semester,
+                is_active=True
+            ).select_related('course').prefetch_related('prerequisites')
+            
+            show_registration = True
+            logger.info(f"Available subjects for registration: {available_subjects.count()}")
+        else:
+            logger.info("Student already has enrollments for current semester")
+    
+    # Get curriculum structure - all subjects organized by year and semester
+    curriculum = {}
+    all_subjects = Subject.objects.filter(
+        course=student.course,
+        is_active=True
+    ).order_by('year', 'semester')
+    
+    for subject in all_subjects:
+        year = subject.year
+        semester = subject.semester
+        if year not in curriculum:
+            curriculum[year] = {}
+        if semester not in curriculum[year]:
+            curriculum[year][semester] = []
+        curriculum[year][semester].append(subject)
+    
+    logger.info(f"Show registration: {show_registration}")
+    logger.info(f"Available subjects count: {len(available_subjects)}")
     
     context = {
         'student': student,
-        'enrollments': enrollments,
         'current_semester': current_semester,
+        'enrollment_groups': enrollment_groups,
+        'available_subjects': available_subjects,
+        'show_registration': show_registration,
+        'curriculum': curriculum,
     }
     return render(request, 'student/subjects.html', context)
 

@@ -67,6 +67,7 @@ class Subject(models.Model):
     theory_hours = models.IntegerField(default=0)
     practical_hours = models.IntegerField(default=0)
     is_elective = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
     prerequisites = models.ManyToManyField('self', blank=True, symmetrical=False)
     
     def __str__(self):
@@ -115,6 +116,7 @@ class Student(models.Model):
     student_id = models.CharField(max_length=20, unique=True)
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='students')
     current_semester = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(10)])
+    current_year = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(10)])
     admission_date = models.DateField()
     admission_type = models.CharField(max_length=20, choices=ADMISSION_TYPES, default='regular')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')

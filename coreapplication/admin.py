@@ -82,10 +82,10 @@ class FacultyAdmin(admin.ModelAdmin):
 # Student Admin
 @admin.register(Student)
 class StudentAdmin(admin.ModelAdmin):
-    list_display = ('get_full_name', 'student_id', 'course', 'current_semester', 'status', 'admission_date')
+    list_display = ('get_full_name', 'student_id', 'course', 'current_year','current_semester',  'status', 'admission_date')
     list_filter = ('course', 'status', 'admission_type', 'current_semester', 'admission_date')
     search_fields = ('user__first_name', 'user__last_name', 'student_id', 'guardian_name')
-    list_editable = ('status', 'current_semester')
+    list_editable = ('status', 'current_year','current_semester')
     raw_id_fields = ('user', 'course')
     date_hierarchy = 'admission_date'
     
