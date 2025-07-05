@@ -426,6 +426,54 @@ class StudentCommentAdmin(admin.ModelAdmin):
             obj.responded_by = request.user
         super().save_model(request, obj, form, change)
 
+from django.contrib import admin
+from .models import CommonQuestion, QuickLink
+
+@admin.register(CommonQuestion)
+class CommonQuestionAdmin(admin.ModelAdmin):
+    list_display = ('question', 'order')
+    list_editable = ('order',)
+    search_fields = ('question',)
+    ordering = ('order', 'question')
+
+
+@admin.register(QuickLink)
+class QuickLinkAdmin(admin.ModelAdmin):
+    list_display = ('title', 'url', 'icon', 'order')
+    list_editable = ('order',)
+    search_fields = ('title', 'url', 'icon')
+    ordering = ('order', 'title')
+
+
+from django.contrib import admin
+from .models import StudentClub, ClubMembership, ClubEvent
+
+@admin.register(StudentClub)
+class StudentClubAdmin(admin.ModelAdmin):
+    list_display = ('name', 'category', 'chairperson', 'contact_phone', 'email', 'is_active', 'created_at')
+    list_filter = ('category', 'is_active', 'created_at')
+    search_fields = ('name', 'chairperson__username', 'email')
+    readonly_fields = ('created_at',)
+    ordering = ('name',)
+
+
+@admin.register(ClubMembership)
+class ClubMembershipAdmin(admin.ModelAdmin):
+    list_display = ('student', 'club', 'position', 'is_executive', 'is_active', 'date_joined')
+    list_filter = ('is_executive', 'is_active', 'club')
+    search_fields = ('student__username', 'club__name', 'position')
+    readonly_fields = ('date_joined',)
+    ordering = ('-date_joined',)
+
+
+@admin.register(ClubEvent)
+class ClubEventAdmin(admin.ModelAdmin):
+    list_display = ('title', 'club', 'organizer', 'status', 'start_datetime', 'end_datetime', 'registration_required')
+    list_filter = ('status', 'club', 'start_datetime', 'registration_required')
+    search_fields = ('title', 'club__name', 'organizer__username', 'location')
+    readonly_fields = ('created_at', 'updated_at')
+    ordering = ('-start_datetime',)
+
 # Customize Admin Site
 admin.site.site_header = "Polytechnic Management System"
 admin.site.site_title = "Polytechnic Admin"

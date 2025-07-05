@@ -408,39 +408,250 @@ def student_subjects(request):
     }
     return render(request, 'student/subjects.html', context)
 
+# views.py
+from django.shortcuts import render, get_object_or_404
+from django.contrib.auth.decorators import login_required
+from django.http import JsonResponse
+from django.db.models import Q
+from .models import Student, Schedule, Subject, TimeSlot, Semester, AcademicYear
+from collections import defaultdict
+from datetime import datetime, time
+
 @login_required
 def student_timetable(request):
-    student = get_object_or_404(Student, user=request.user)
-    current_semester = Semester.objects.filter(is_current=True).first()
-    
-    # Get enrolled subjects for current semester
-    enrolled_subjects = Enrollment.objects.filter(
-        student=student,
-        semester=current_semester,
-        is_active=True
-    ).values_list('subject', flat=True)
-    
-    # Get schedules for enrolled subjects
-    schedules = Schedule.objects.filter(
-        subject__in=enrolled_subjects,
-        semester=current_semester,
-        is_active=True
-    ).select_related('subject', 'faculty', 'classroom', 'time_slot')
-    
-    # Organize by day
-    timetable = {}
-    days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
-    
-    for day in days:
-        timetable[day] = schedules.filter(time_slot__day_of_week=day).order_by('time_slot__start_time')
-    
-    context = {
-        'student': student,
-        'timetable': timetable,
-        'current_semester': current_semester,
-    }
-    return render(request, 'student/timetable.html', context)
+    """
+    Generate timetable for the logged-in student based on their current year and semester
+    """
+    try:
+        # Get the student profile for the logged-in user
+        student = get_object_or_404(Student, user=request.user)
+        
+        # Get current academic year and semester
+        current_academic_year = AcademicYear.objects.filter(is_current=True).first()
+        current_semester = Semester.objects.filter(
+            academic_year=current_academic_year,
+            is_current=True
+        ).first()
+        
+        if not current_semester:
+            return render(request, 'timetable/error.html', {
+                'error_message': 'No current semester found. Please contact administration.'
+            })
+        
+        # Get subjects for the student's current year and semester
+        subjects = Subject.objects.filter(
+            course=student.course,
+            year=student.current_year,
+            semester=student.current_semester,
+            is_active=True
+        )
+        
+        # Get schedules for these subjects in the current semester
+        schedules = Schedule.objects.filter(
+            subject__in=subjects,
+            semester=current_semester,
+            is_active=True
+        ).select_related(
+            'subject', 'faculty', 'classroom', 'time_slot'
+        ).order_by('time_slot__day_of_week', 'time_slot__start_time')
+        
+        # Create a grid-based timetable
+        timetable_grid = create_timetable_grid(schedules)
+        
+        context = {
+            'student': student,
+            'current_semester': current_semester,
+            'timetable_grid': timetable_grid,
+            'subjects': subjects,
+            'total_subjects': subjects.count(),
+        }
+        
+        return render(request, 'student/timetable.html', context)
+        
+    except Student.DoesNotExist:
+        return render(request, 'timetable/error.html', {
+            'error_message': 'Student profile not found. Please contact administration.'
+        })
 
+def create_timetable_grid(schedules):
+    """
+    Create a grid-based timetable structure
+    """
+    # Define days and time slots
+    days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+    day_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+    
+    # Get all unique time slots from schedules
+    time_slots = set()
+    for schedule in schedules:
+        time_slots.add((schedule.time_slot.start_time, schedule.time_slot.end_time))
+    
+    # Sort time slots by start time
+    time_slots = sorted(list(time_slots))
+    
+    # Create a dictionary to store schedule data by day and time
+    schedule_dict = {}
+    for schedule in schedules:
+        day = schedule.time_slot.day_of_week
+        time_key = (schedule.time_slot.start_time, schedule.time_slot.end_time)
+        
+        if day not in schedule_dict:
+            schedule_dict[day] = {}
+        
+        schedule_dict[day][time_key] = {
+            'subject': schedule.subject,
+            'faculty': schedule.faculty,
+            'classroom': schedule.classroom,
+        }
+    
+    # Build the grid
+    grid = {
+        'days': day_names,
+        'time_slots': time_slots,
+        'schedule_dict': schedule_dict,
+        'cells': []
+    }
+    
+    # Create cells for each time slot and day combination
+    for time_slot in time_slots:
+        row = {
+            'time_slot': time_slot,
+            'time_display': f"{time_slot[0].strftime('%H:%M')} - {time_slot[1].strftime('%H:%M')}",
+            'days_data': []
+        }
+        
+        for day in days:
+            cell_data = schedule_dict.get(day, {}).get(time_slot, None)
+            row['days_data'].append(cell_data)
+        
+        grid['cells'].append(row)
+    
+    return grid
+
+@login_required
+def timetable_by_course_year_semester(request):
+    """
+    Generate timetable for a specific course, year, and semester
+    Accessible by faculty and admin
+    """
+    if request.user.user_type not in ['faculty', 'admin']:
+        return render(request, 'timetable/error.html', {
+            'error_message': 'You do not have permission to access this page.'
+        })
+    
+    course_id = request.GET.get('course')
+    year = request.GET.get('year')
+    semester_num = request.GET.get('semester')
+    
+    if not all([course_id, year, semester_num]):
+        return render(request, 'timetable/course_timetable_form.html')
+    
+    try:
+        year = int(year)
+        semester_num = int(semester_num)
+        
+        # Get current academic year and semester
+        current_academic_year = AcademicYear.objects.filter(is_current=True).first()
+        current_semester = Semester.objects.filter(
+            academic_year=current_academic_year,
+            is_current=True
+        ).first()
+        
+        # Get subjects for the specified course, year, and semester
+        subjects = Subject.objects.filter(
+            course_id=course_id,
+            year=year,
+            semester=semester_num,
+            is_active=True
+        )
+        
+        # Get schedules for these subjects
+        schedules = Schedule.objects.filter(
+            subject__in=subjects,
+            semester=current_semester,
+            is_active=True
+        ).select_related(
+            'subject', 'faculty', 'classroom', 'time_slot'
+        ).order_by('time_slot__day_of_week', 'time_slot__start_time')
+        
+        # Create grid-based timetable
+        timetable_grid = create_timetable_grid(schedules)
+        
+        context = {
+            'timetable_grid': timetable_grid,
+            'course': subjects.first().course if subjects.exists() else None,
+            'year': year,
+            'semester': semester_num,
+            'current_semester': current_semester,
+            'subjects': subjects,
+            'total_subjects': subjects.count(),
+        }
+        
+        return render(request, 'timetable/course_timetable.html', context)
+        
+    except (ValueError, TypeError):
+        return render(request, 'timetable/error.html', {
+            'error_message': 'Invalid parameters provided.'
+        })
+
+@login_required
+def get_timetable_json(request):
+    """
+    API endpoint to get timetable data as JSON
+    """
+    try:
+        student = get_object_or_404(Student, user=request.user)
+        
+        # Get current semester
+        current_academic_year = AcademicYear.objects.filter(is_current=True).first()
+        current_semester = Semester.objects.filter(
+            academic_year=current_academic_year,
+            is_current=True
+        ).first()
+        
+        if not current_semester:
+            return JsonResponse({'error': 'No current semester found'}, status=400)
+        
+        # Get subjects and schedules
+        subjects = Subject.objects.filter(
+            course=student.course,
+            year=student.current_year,
+            semester=student.current_semester,
+            is_active=True
+        )
+        
+        schedules = Schedule.objects.filter(
+            subject__in=subjects,
+            semester=current_semester,
+            is_active=True
+        ).select_related('subject', 'faculty', 'classroom', 'time_slot')
+        
+        # Format data for JSON response
+        timetable_data = []
+        for schedule in schedules:
+            timetable_data.append({
+                'day': schedule.time_slot.day_of_week,
+                'start_time': schedule.time_slot.start_time.strftime('%H:%M'),
+                'end_time': schedule.time_slot.end_time.strftime('%H:%M'),
+                'subject_name': schedule.subject.name,
+                'subject_code': schedule.subject.code,
+                'faculty_name': schedule.faculty.user.get_full_name(),
+                'classroom': schedule.classroom.name,
+                'room_number': schedule.classroom.room_number,
+            })
+        
+        return JsonResponse({
+            'student_id': student.student_id,
+            'course': student.course.name,
+            'year': student.current_year,
+            'semester': student.current_semester,
+            'timetable': timetable_data
+        })
+        
+    except Student.DoesNotExist:
+        return JsonResponse({'error': 'Student profile not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 @login_required
 def student_grades(request):
     student = get_object_or_404(Student, user=request.user)
