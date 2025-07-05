@@ -34,76 +34,151 @@ def student_logout(request):
     logout(request)
     return redirect('student_login')
 
-# Dashboard View
+from django.shortcuts import render, get_object_or_404
+from django.contrib.auth.decorators import login_required
+from django.db.models import Sum, Q
+from django.utils import timezone
+from .models import Student, Enrollment, Grade, Subject, Semester, AcademicYear
+
 @login_required
 def student_dashboard(request):
     student = get_object_or_404(Student, user=request.user)
     
-    # Get current semester
-    current_semester = Semester.objects.filter(is_current=True).first()
+    # Get current academic year
+    current_academic_year = AcademicYear.objects.filter(is_current=True).first()
     
-    # Get enrolled subjects for current semester
-    current_enrollments = Enrollment.objects.filter(
-        student=student,
-        semester=current_semester,
+    # Get enrolled subjects for student's current semester and year
+    # Filter subjects based on student's current year and semester
+    current_subjects = Subject.objects.filter(
+        course=student.course,
+        year=student.current_year,
+        semester=student.current_semester,
         is_active=True
     )
+    
+    # Get current enrollments for the student's current semester
+    current_enrollments = Enrollment.objects.filter(
+        student=student,
+        subject__in=current_subjects,
+        is_active=True
+    ).select_related('subject')
+    
+    # If no enrollments found, you might want to show available subjects for enrollment
+    available_subjects = []
+    if not current_enrollments.exists():
+        available_subjects = current_subjects
     
     # Get recent grades
     recent_grades = Grade.objects.filter(
         enrollment__student=student
-    ).order_by('-exam_date')[:5]
+    ).select_related('enrollment__subject').order_by('-exam_date')[:5]
     
-    # Get attendance summary
+    # Get attendance summary (assuming you have an Attendance model)
     attendance_summary = []
     for enrollment in current_enrollments:
-        total_classes = Attendance.objects.filter(
-            student=student,
-            subject=enrollment.subject
-        ).count()
+        # You'll need to uncomment these lines if you have an Attendance model
+        # total_classes = Attendance.objects.filter(
+        #     student=student,
+        #     subject=enrollment.subject
+        # ).count()
         
-        present_classes = Attendance.objects.filter(
-            student=student,
-            subject=enrollment.subject,
-            status='present'
-        ).count()
+        # present_classes = Attendance.objects.filter(
+        #     student=student,
+        #     subject=enrollment.subject,
+        #     status='present'
+        # ).count()
         
-        attendance_percentage = (present_classes / total_classes * 100) if total_classes > 0 else 0
+        # attendance_percentage = (present_classes / total_classes * 100) if total_classes > 0 else 0
         
         attendance_summary.append({
             'subject': enrollment.subject,
-            'total_classes': total_classes,
-            'present_classes': present_classes,
-            'attendance_percentage': attendance_percentage
+            'total_classes': 0,  # Replace with actual count
+            'present_classes': 0,  # Replace with actual count
+            'attendance_percentage': 0  # Replace with actual percentage
         })
     
-    # Get upcoming exams
-    upcoming_exams = ExamSchedule.objects.filter(
-        subject__in=[e.subject for e in current_enrollments],
-        exam_date__gte=timezone.now().date()
-    ).order_by('exam_date')[:5]
+    # Get upcoming exams (assuming you have an ExamSchedule model)
+    upcoming_exams = []
+    # upcoming_exams = ExamSchedule.objects.filter(
+    #     subject__in=[e.subject for e in current_enrollments],
+    #     exam_date__gte=timezone.now().date()
+    # ).order_by('exam_date')[:5]
     
-    # Get pending fees
-    pending_fees = FeePayment.objects.filter(
-        student=student,
-        payment_status='pending'
-    ).aggregate(total=Sum('amount_paid'))['total'] or 0
+    # Get pending fees (assuming you have a FeePayment model)
+    pending_fees = 0
+    # pending_fees = FeePayment.objects.filter(
+    #     student=student,
+    #     payment_status='pending'
+    # ).aggregate(total=Sum('amount_paid'))['total'] or 0
     
-    # Get recent notifications
-    recent_notifications = Notification.objects.filter(
-        Q(target_users=request.user) | Q(is_global=True),
+    # Get recent notifications (assuming you have a Notification model)
+    recent_notifications = []
+    # recent_notifications = Notification.objects.filter(
+    #     Q(target_users=request.user) | Q(is_global=True),
+    #     is_active=True
+    # ).order_by('-created_at')[:5]
+    
+    # Calculate overall progress
+    total_subjects_in_course = Subject.objects.filter(
+        course=student.course,
         is_active=True
-    ).order_by('-created_at')[:5]
+    ).count()
+    
+    completed_subjects = Grade.objects.filter(
+        enrollment__student=student,
+        is_passed=True
+    ).count()
+    
+    progress_percentage = (completed_subjects / total_subjects_in_course * 100) if total_subjects_in_course > 0 else 0
+    
+    # Calculate current semester progress
+    current_semester_subjects = Subject.objects.filter(
+        course=student.course,
+        year=student.current_year,
+        semester=student.current_semester,
+        is_active=True
+    ).count()
+    
+    current_semester_completed = Grade.objects.filter(
+        enrollment__student=student,
+        enrollment__subject__year=student.current_year,
+        enrollment__subject__semester=student.current_semester,
+        is_passed=True
+    ).count()
+    
+    current_semester_progress = (current_semester_completed / current_semester_subjects * 100) if current_semester_subjects > 0 else 0
+    
+    # Format registrations for template compatibility
+    registrations = []
+    for enrollment in current_enrollments:
+        registrations.append({
+            'unit': {
+                'name': enrollment.subject.name
+            },
+            'unitCode': {
+                'code': enrollment.subject.code
+            },
+            'approved': enrollment.is_active  # Assuming active means approved
+        })
     
     context = {
         'student': student,
-        'current_semester': current_semester,
+        'current_academic_year': current_academic_year,
+        'current_subjects': current_subjects,
         'current_enrollments': current_enrollments,
+        'available_subjects': available_subjects,
         'recent_grades': recent_grades,
         'attendance_summary': attendance_summary,
         'upcoming_exams': upcoming_exams,
         'pending_fees': pending_fees,
         'recent_notifications': recent_notifications,
+        'progress_percentage': progress_percentage,
+        'total_subjects_in_course': total_subjects_in_course,
+        'completed_subjects': completed_subjects,
+        'registrations': registrations,
+        'current_semester_progress': current_semester_progress,
+        'current_semester_subjects': current_semester_subjects,
+        'current_semester_completed': current_semester_completed,
     }
     
     return render(request, 'student/dashboard.html', context)

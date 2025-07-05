@@ -241,4 +241,72 @@
     </div>
 </div>
 
+<!-- Add this JavaScript at the bottom of your existing template, before the closing body tag -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Update progress bar for current semester
+    var currentSemesterProgress = {{ current_semester_progress|floatformat:0 }};
+    var progressBar = document.getElementById('theprogressbar');
+    var studProgElement = document.getElementById('studProg');
+    
+    if (progressBar) {
+        progressBar.style.width = currentSemesterProgress + '%';
+        progressBar.setAttribute('aria-valuenow', currentSemesterProgress);
+        progressBar.textContent = currentSemesterProgress + '%';
+    }
+    
+    if (studProgElement) {
+        studProgElement.textContent = 'Year {{ student.current_year }}, Semester {{ student.current_semester }}';
+    }
+    
+    // Update course name if needed
+    var courseElements = document.querySelectorAll('.esubtitle');
+    if (courseElements.length > 0) {
+        courseElements[0].textContent = '{{ student.course.name|upper }}';
+    }
+});
+</script>
+
+<!-- Optional: Add this CSS for better progress bar styling -->
+<style>
+.progress-bar {
+    background-color: #28a745;
+    transition: width 0.3s ease;
+}
+
+.progress {
+    height: 20px;
+    background-color: #e9ecef;
+    border-radius: 10px;
+}
+
+/* Style for the units table */
+#dashboardUnits .table tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+#dashboardUnits .table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    border-bottom: 2px solid #dee2e6;
+}
+
+/* Status badges */
+.status-approved {
+    background-color: #28a745;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.85em;
+}
+
+.status-pending {
+    background-color: #ffc107;
+    color: #212529;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.85em;
+}
+</style>
+
 {% endblock %}
