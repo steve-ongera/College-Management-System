@@ -708,3 +708,250 @@ class NewsArticle(models.Model):
         verbose_name_plural = 'News Articles'
 
 
+
+# Additional models to add to your existing models.py file
+
+from django.db import models
+from django.contrib.auth.models import AbstractUser
+from django.core.validators import MinValueValidator, MaxValueValidator
+from django.utils import timezone
+from django.core.exceptions import ValidationError
+
+# Student Reporting Models
+class StudentReport(models.Model):
+    REPORT_TYPES = (
+        ('academic', 'Academic Issue'),
+        ('disciplinary', 'Disciplinary Issue'),
+        ('facility', 'Facility Issue'),
+        ('health', 'Health Issue'),
+        ('financial', 'Financial Issue'),
+        ('accommodation', 'Accommodation Issue'),
+        ('other', 'Other'),
+    )
+    
+    STATUS_CHOICES = (
+        ('pending', 'Pending'),
+        ('in_progress', 'In Progress'),
+        ('resolved', 'Resolved'),
+        ('dismissed', 'Dismissed'),
+    )
+    
+    student = models.ForeignKey('Student', on_delete=models.CASCADE, related_name='reports')
+    semester = models.ForeignKey('Semester', on_delete=models.CASCADE, related_name='student_reports')
+    report_type = models.CharField(max_length=20, choices=REPORT_TYPES)
+    subject = models.CharField(max_length=200)
+    description = models.TextField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolved_by = models.ForeignKey('User', on_delete=models.SET_NULL, null=True, blank=True, related_name='resolved_reports')
+    admin_response = models.TextField(blank=True, null=True)
+    priority = models.CharField(max_length=10, choices=[
+        ('low', 'Low'),
+        ('medium', 'Medium'),
+        ('high', 'High'),
+        ('urgent', 'Urgent')
+    ], default='medium')
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Student Report'
+        verbose_name_plural = 'Student Reports'
+    
+    def clean(self):
+        # Ensure report is for current semester in active academic year
+        if self.semester and not self.semester.is_current:
+            raise ValidationError("Reports can only be made for the current semester.")
+        
+        if self.semester and not self.semester.academic_year.is_current:
+            raise ValidationError("Reports can only be made for the current academic year.")
+    
+    def save(self, *args, **kwargs):
+        self.clean()
+        if self.status == 'resolved' and not self.resolved_at:
+            self.resolved_at = timezone.now()
+        super().save(*args, **kwargs)
+    
+    def __str__(self):
+        return f"{self.student.student_id} - {self.subject} ({self.status})"
+
+
+# Hostel Management Models
+class Hostel(models.Model):
+    HOSTEL_TYPES = (
+        ('boys', 'Boys Hostel'),
+        ('girls', 'Girls Hostel'),
+    )
+    
+    name = models.CharField(max_length=100)
+    hostel_type = models.CharField(max_length=10, choices=HOSTEL_TYPES)
+    initials = models.CharField(max_length=5, unique=True)  # e.g., 'BH1', 'GH1'
+    total_rooms = models.IntegerField()
+    warden = models.ForeignKey('User', on_delete=models.SET_NULL, null=True, blank=True, related_name='managed_hostels')
+    description = models.TextField(blank=True)
+    facilities = models.TextField(blank=True)
+    rules = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"{self.name} ({self.initials})"
+    
+    @property
+    def available_rooms(self):
+        return self.rooms.filter(is_available=True).count()
+    
+    @property
+    def occupied_rooms(self):
+        return self.rooms.filter(is_available=False).count()
+
+
+class HostelRoom(models.Model):
+    hostel = models.ForeignKey(Hostel, on_delete=models.CASCADE, related_name='rooms')
+    room_number = models.CharField(max_length=10)
+    room_name = models.CharField(max_length=20)  # e.g., 'BH1-101', 'GH1-201'
+    floor = models.IntegerField()
+    total_beds = models.IntegerField(default=4)
+    is_available = models.BooleanField(default=True)
+    facilities = models.TextField(blank=True)  # e.g., 'AC, WiFi, Study Table'
+    
+    class Meta:
+        unique_together = ['hostel', 'room_number']
+    
+    def save(self, *args, **kwargs):
+        if not self.room_name:
+            self.room_name = f"{self.hostel.initials}-{self.room_number}"
+        super().save(*args, **kwargs)
+    
+    def __str__(self):
+        return f"{self.room_name} ({self.hostel.name})"
+    
+    @property
+    def available_beds(self):
+        return self.total_beds - self.bookings.filter(
+            is_active=True,
+            academic_year__is_current=True
+        ).count()
+    
+    @property
+    def occupied_beds(self):
+        return self.bookings.filter(
+            is_active=True,
+            academic_year__is_current=True
+        ).count()
+
+
+class HostelBooking(models.Model):
+    BOOKING_STATUS = (
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+        ('cancelled', 'Cancelled'),
+    )
+    
+    student = models.ForeignKey('Student', on_delete=models.CASCADE, related_name='hostel_bookings')
+    room = models.ForeignKey(HostelRoom, on_delete=models.CASCADE, related_name='bookings')
+    academic_year = models.ForeignKey('AcademicYear', on_delete=models.CASCADE, related_name='hostel_bookings')
+    bed_number = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(4)])
+    booking_date = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=20, choices=BOOKING_STATUS, default='pending')
+    check_in_date = models.DateField(null=True, blank=True)
+    check_out_date = models.DateField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    approved_by = models.ForeignKey('User', on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_bookings')
+    approved_at = models.DateTimeField(null=True, blank=True)
+    rejection_reason = models.TextField(blank=True, null=True)
+    emergency_contact = models.CharField(max_length=15)
+    medical_info = models.TextField(blank=True)
+    
+    class Meta:
+        unique_together = ['student', 'academic_year']  # One booking per student per academic year
+        ordering = ['-booking_date']
+    
+    def clean(self):
+        if self.student:
+            # Check if student is in year 1, semester 1
+            if self.student.current_year != 1:
+                raise ValidationError("Only first-year students can apply for hostel accommodation.")
+            
+            if self.student.current_semester != 1:
+                raise ValidationError("Hostel applications are only available for first semester students.")
+            
+            # Check gender compatibility
+            if self.room:
+                student_gender = getattr(self.student.user, 'gender', None)  # Assuming gender field exists
+                if self.room.hostel.hostel_type == 'boys' and student_gender == 'female':
+                    raise ValidationError("Female students cannot apply for boys' hostel.")
+                elif self.room.hostel.hostel_type == 'girls' and student_gender == 'male':
+                    raise ValidationError("Male students cannot apply for girls' hostel.")
+        
+        # Check if bed is available
+        if self.room and self.bed_number:
+            existing_booking = HostelBooking.objects.filter(
+                room=self.room,
+                bed_number=self.bed_number,
+                academic_year=self.academic_year,
+                is_active=True,
+                status='approved'
+            ).exclude(id=self.id)
+            
+            if existing_booking.exists():
+                raise ValidationError(f"Bed {self.bed_number} in room {self.room.room_name} is already occupied.")
+    
+    def save(self, *args, **kwargs):
+        self.clean()
+        if self.status == 'approved' and not self.approved_at:
+            self.approved_at = timezone.now()
+        super().save(*args, **kwargs)
+    
+    def __str__(self):
+        return f"{self.student.student_id} - {self.room.room_name} - Bed {self.bed_number}"
+
+
+class HostelFeeStructure(models.Model):
+    hostel = models.ForeignKey(Hostel, on_delete=models.CASCADE, related_name='fee_structures')
+    academic_year = models.ForeignKey('AcademicYear', on_delete=models.CASCADE, related_name='hostel_fees')
+    accommodation_fee = models.DecimalField(max_digits=10, decimal_places=2)
+    mess_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    security_deposit = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    maintenance_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    other_charges = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    
+    class Meta:
+        unique_together = ['hostel', 'academic_year']
+    
+    def total_fee(self):
+        return (self.accommodation_fee + self.mess_fee + 
+                self.security_deposit + self.maintenance_fee + self.other_charges)
+    
+    def __str__(self):
+        return f"{self.hostel.name} - {self.academic_year.year}"
+
+
+class HostelFeePayment(models.Model):
+    PAYMENT_STATUS = (
+        ('pending', 'Pending'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+        ('refunded', 'Refunded'),
+    )
+    
+    booking = models.ForeignKey(HostelBooking, on_delete=models.CASCADE, related_name='fee_payments')
+    fee_structure = models.ForeignKey(HostelFeeStructure, on_delete=models.CASCADE, related_name='payments')
+    amount_paid = models.DecimalField(max_digits=10, decimal_places=2)
+    payment_date = models.DateTimeField(auto_now_add=True)
+    payment_method = models.CharField(max_length=20, choices=[
+        ('cash', 'Cash'),
+        ('bank_transfer', 'Bank Transfer'),
+        ('online', 'Online Payment'),
+        ('cheque', 'Cheque'),
+    ])
+    transaction_id = models.CharField(max_length=100, blank=True)
+    receipt_number = models.CharField(max_length=50, unique=True)
+    status = models.CharField(max_length=20, choices=PAYMENT_STATUS, default='pending')
+    
+    def __str__(self):
+        return f"{self.booking.student.student_id} - {self.receipt_number}"
+
+
