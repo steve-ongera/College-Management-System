@@ -54,4 +54,26 @@ urlpatterns = [
     path('clubs/leave/<int:club_id>/', views.leave_club, name='leave_club'),
     path('club-events/', views.club_events, name='club_events'),
     path('club-events/<int:club_id>/', views.club_events, name='club_events_detail'),
-]
+
+    # Student Reporting
+    path('student/reporting/', views.student_reporting_dashboard, name='student_reporting_dashboard'),
+    path('student/reporting/create/', views.create_student_report, name='create_student_report'),
+    path('student/reporting/<int:report_id>/', views.report_detail, name='report_detail'),
+
+    # Hostel Booking
+    path('hostel/', views.hostel_booking_dashboard, name='hostel_booking_dashboard'),
+    path('hostel/list/', views.hostel_list, name='hostel_list'),
+    path('hostel/<int:hostel_id>/', views.hostel_detail, name='hostel_detail'),
+    path('hostel/room/<int:room_id>/', views.room_detail, name='room_detail'),
+    path('hostel/bed/<int:bed_id>/apply/', views.apply_hostel_booking, name='apply_hostel_booking'),
+    path('hostel/room/<int:room_id>/beds/', views.get_room_beds, name='get_room_beds'),
+    path('hostel/history/', views.booking_history, name='booking_history'),
+    path('hostel/booking/<int:booking_id>/cancel/', views.cancel_booking, name='cancel_booking'),
+    path('hostel/quick-booking/', views.quick_bed_booking, name='quick_bed_booking'),
+
+    # Admin Hostel Management
+    path('admin/hostel/bookings/', views.admin_hostel_bookings, name='admin_hostel_bookings'),
+    path('admin/hostel/booking/<int:booking_id>/approve/', views.admin_approve_booking, name='admin_approve_booking'),
+    path('admin/hostel/booking/<int:booking_id>/reject/', views.admin_reject_booking, name='admin_reject_booking'),
+
+ ]

@@ -15,20 +15,20 @@ from .models import (
 # Custom User Admin
 @admin.register(User)
 class CustomUserAdmin(UserAdmin):
-    list_display = ('username', 'email', 'first_name', 'last_name', 'user_type', 'is_active', 'date_joined')
+    list_display = ('username', 'email', 'first_name', 'last_name', 'user_type', 'is_active', 'date_joined','gender')
     list_filter = ('user_type', 'is_active', 'is_staff', 'is_superuser', 'date_joined')
     search_fields = ('username', 'email', 'first_name', 'last_name', 'phone')
     ordering = ('-date_joined',)
     
     fieldsets = UserAdmin.fieldsets + (
         ('Additional Info', {
-            'fields': ('user_type', 'phone', 'address', 'date_of_birth', 'profile_picture')
+            'fields': ('user_type', 'phone', 'address', 'date_of_birth', 'profile_picture','gender')
         }),
     )
     
     add_fieldsets = UserAdmin.add_fieldsets + (
         ('Additional Info', {
-            'fields': ('user_type', 'phone', 'address', 'date_of_birth', 'profile_picture')
+            'fields': ('user_type', 'phone', 'address', 'date_of_birth', 'profile_picture','gender')
         }),
     )
 
@@ -486,6 +486,85 @@ class NewsArticleAdmin(admin.ModelAdmin):
     date_hierarchy = 'publish_date'
     readonly_fields = ('created_at', 'updated_at')
     ordering = ('-publish_date',)
+
+
+from django.contrib import admin
+from .models import (
+    StudentReport, Hostel, HostelRoom, HostelBooking,
+    HostelFeeStructure, HostelFeePayment
+)
+
+@admin.register(StudentReport)
+class StudentReportAdmin(admin.ModelAdmin):
+    list_display = ('student', 'subject', 'report_type', 'status', 'priority', 'created_at', 'resolved_at')
+    list_filter = ('report_type', 'status', 'priority', 'semester')
+    search_fields = ('student__student_id', 'subject', 'description')
+    date_hierarchy = 'created_at'
+    ordering = ['-created_at']
+    readonly_fields = ('created_at', 'updated_at', 'resolved_at')
+
+
+from django.contrib import admin
+from .models import (
+    Hostel, HostelRoom, HostelBed,
+    HostelBooking, HostelFeeStructure, HostelFeePayment
+)
+
+
+@admin.register(Hostel)
+class HostelAdmin(admin.ModelAdmin):
+    list_display = ('name', 'initials', 'hostel_type', 'total_rooms', 'available_rooms', 'occupied_rooms', 'is_active')
+    search_fields = ('name', 'initials')
+    list_filter = ('hostel_type', 'is_active')
+
+
+@admin.register(HostelRoom)
+class HostelRoomAdmin(admin.ModelAdmin):
+    list_display = ('room_name', 'hostel', 'floor', 'total_beds', 'available_beds', 'occupied_beds', 'is_available')
+    search_fields = ('room_name', 'room_number')
+    list_filter = ('hostel', 'floor', 'is_available')
+    raw_id_fields = ('hostel',)
+
+
+@admin.register(HostelBed)
+class HostelBedAdmin(admin.ModelAdmin):
+    list_display = ('bed_name', 'room', 'bed_number', 'is_available', 'is_maintenance', 'bed_type')
+    list_filter = ('bed_type', 'is_available', 'is_maintenance')
+    search_fields = ('bed_name',)
+    raw_id_fields = ('room',)
+
+
+@admin.register(HostelBooking)
+class HostelBookingAdmin(admin.ModelAdmin):
+    list_display = (
+        'student', 'bed', 'academic_year', 'status',
+        'booking_date', 'check_in_date', 'check_out_date', 'is_active'
+    )
+    list_filter = ('status', 'academic_year', 'is_active')
+    search_fields = ('student__student_id', 'bed__bed_name')
+    raw_id_fields = ('student', 'bed', 'approved_by', 'academic_year')
+
+
+@admin.register(HostelFeeStructure)
+class HostelFeeStructureAdmin(admin.ModelAdmin):
+    list_display = (
+        'hostel', 'academic_year', 'accommodation_fee',
+        'mess_fee', 'security_deposit', 'maintenance_fee', 'other_charges', 'total_fee'
+    )
+    list_filter = ('hostel', 'academic_year')
+    raw_id_fields = ('hostel', 'academic_year')
+
+
+@admin.register(HostelFeePayment)
+class HostelFeePaymentAdmin(admin.ModelAdmin):
+    list_display = (
+        'booking', 'receipt_number', 'amount_paid',
+        'payment_date', 'payment_method', 'status'
+    )
+    search_fields = ('receipt_number', 'booking__student__student_id')
+    list_filter = ('payment_method', 'status', 'payment_date')
+    raw_id_fields = ('booking', 'fee_structure')
+
 
 # Customize Admin Site
 admin.site.site_header = "Polytechnic Management System"

@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container">
+    <h2>Your Booking History</h2>
+    
+    <div class="card">
+        <div class="card-body">
+            {% if bookings %}
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Hostel</th>
+                        <th>Room</th>
+                        <th>Bed</th>
+                        <th>Status</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for booking in bookings %}
+                    <tr>
+                        <td>{{ booking.room.hostel.name }}</td>
+                        <td>{{ booking.room.room_name }}</td>
+                        <td>{{ booking.bed_number }}</td>
+                        <td>{{ booking.get_status_display }}</td>
+                        <td>{{ booking.booking_date|date:"Y-m-d" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            
+            {% include 'partials/pagination.html' with page_obj=bookings %}
+            {% else %}
+            <p>You don't have any hostel bookings yet.</p>
+            {% endif %}
+            
+            <a href="{% url 'hostel_booking_dashboard' %}" class="btn btn-secondary">Back to Dashboard</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

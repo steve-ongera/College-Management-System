@@ -1179,8 +1179,623 @@ def student_news(request):
     return render(request, 'news/student_news.html', context)
 
 
+# views.py - Add these views to your existing views.py file
+
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.core.paginator import Paginator
+from django.db.models import Q
+from django.http import JsonResponse
+from django.views.decorators.http import require_http_methods
+from django.utils import timezone
+
+from .models import (
+    Student, StudentReport, Hostel, HostelRoom, HostelBooking, 
+    HostelFeeStructure, AcademicYear, Semester
+)
+from .forms import StudentReportForm  # You'll need to create these forms
 
 
+# Student Reporting Views
+@login_required
+def student_reporting_dashboard(request):
+    """View for student to see their reports and create new ones"""
+    if not hasattr(request.user, 'student_profile'):
+        messages.error(request, "Only students can access this page.")
+        return redirect('home')
     
+    student = request.user.student_profile
+    
+    # Get current semester
+    current_semester = Semester.objects.filter(
+        is_current=True,
+        academic_year__is_current=True
+    ).first()
+    
+    if not current_semester:
+        messages.error(request, "No active semester found.")
+        return redirect('home')
+    
+    # Get student's reports for current semester
+    reports = StudentReport.objects.filter(
+        student=student,
+        semester=current_semester
+    ).order_by('-created_at')
+    
+    # Pagination
+    paginator = Paginator(reports, 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    context = {
+        'student': student,
+        'current_semester': current_semester,
+        'reports': page_obj,
+        'total_reports': reports.count(),
+        'pending_reports': reports.filter(status='pending').count(),
+        'resolved_reports': reports.filter(status='resolved').count(),
+    }
+    
+    return render(request, 'student_reporting/dashboard.html', context)
 
 
+@login_required
+def create_student_report(request):
+    """View for creating a new student report"""
+    if not hasattr(request.user, 'student_profile'):
+        messages.error(request, "Only students can access this page.")
+        return redirect('home')
+    
+    student = request.user.student_profile
+    
+    # Get current semester
+    current_semester = Semester.objects.filter(
+        is_current=True,
+        academic_year__is_current=True
+    ).first()
+    
+    if not current_semester:
+        messages.error(request, "No active semester found.")
+        return redirect('student_reporting_dashboard')
+    
+    if request.method == 'POST':
+        form = StudentReportForm(request.POST)
+        if form.is_valid():
+            report = form.save(commit=False)
+            report.student = student
+            report.semester = current_semester
+            report.save()
+            messages.success(request, "Your report has been submitted successfully.")
+            return redirect('student_reporting_dashboard')
+    else:
+        form = StudentReportForm()
+    
+    context = {
+        'form': form,
+        'student': student,
+        'current_semester': current_semester,
+    }
+    
+    return render(request, 'student_reporting/create_report.html', context)
+
+
+@login_required
+def report_detail(request, report_id):
+    """View for viewing a specific report"""
+    if not hasattr(request.user, 'student_profile'):
+        messages.error(request, "Only students can access this page.")
+        return redirect('home')
+    
+    student = request.user.student_profile
+    report = get_object_or_404(StudentReport, id=report_id, student=student)
+    
+    context = {
+        'report': report,
+        'student': student,
+    }
+    
+    return render(request, 'student_reporting/report_detail.html', context)
+
+
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.core.paginator import Paginator
+from django.views.decorators.http import require_http_methods
+from django.db.models import Q
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+import json
+
+from .models import (
+    Hostel, HostelRoom, HostelBed, HostelBooking, 
+    HostelFeeStructure, AcademicYear
+)
+from .forms import HostelBookingForm
+
+
+@login_required
+def hostel_booking_dashboard(request):
+    """Main dashboard for hostel booking"""
+    if not hasattr(request.user, 'student_profile'):
+        messages.error(request, "Only students can access this page.")
+        return redirect('home')
+    
+    student = request.user.student_profile
+    
+    # Check if student is eligible (Year 1, Semester 1)
+    eligible = student.current_year == 1 and student.current_semester == 1
+    
+    current_academic_year = AcademicYear.objects.filter(is_current=True).first()
+    
+    # Get student's current booking
+    current_booking = None
+    if current_academic_year:
+        current_booking = HostelBooking.objects.filter(
+            student=student,
+            academic_year=current_academic_year
+        ).first()
+    
+    # Get available hostels based on student's gender
+    student_gender = getattr(student.user, 'gender', None)
+    available_hostels = []
+    
+    if student_gender == 'male':
+        available_hostels = Hostel.objects.filter(hostel_type='boys', is_active=True)
+    elif student_gender == 'female':
+        available_hostels = Hostel.objects.filter(hostel_type='girls', is_active=True)
+    
+    context = {
+        'student': student,
+        'eligible': eligible,
+        'current_booking': current_booking,
+        'available_hostels': available_hostels,
+        'current_academic_year': current_academic_year,
+    }
+    
+    return render(request, 'hostel/dashboard.html', context)
+
+
+@login_required
+def hostel_list(request):
+    """View to display all available hostels"""
+    if not hasattr(request.user, 'student_profile'):
+        messages.error(request, "Only students can access this page.")
+        return redirect('home')
+    
+    student = request.user.student_profile
+    student_gender = getattr(student.user, 'gender', None)
+    
+    # Filter hostels based on gender
+    if student_gender == 'male':
+        hostels = Hostel.objects.filter(hostel_type='boys', is_active=True)
+    elif student_gender == 'female':
+        hostels = Hostel.objects.filter(hostel_type='girls', is_active=True)
+    else:
+        hostels = Hostel.objects.none()
+    
+    context = {
+        'hostels': hostels,
+        'student': student,
+    }
+    
+    return render(request, 'hostel/hostel_list.html', context)
+
+
+@login_required
+def hostel_detail(request, hostel_id):
+    """View to display hostel details and available rooms"""
+    if not hasattr(request.user, 'student_profile'):
+        messages.error(request, "Only students can access this page.")
+        return redirect('home')
+    
+    student = request.user.student_profile
+    hostel = get_object_or_404(Hostel, id=hostel_id, is_active=True)
+    
+    # Check if student can access this hostel
+    student_gender = getattr(student.user, 'gender', None)
+    if ((hostel.hostel_type == 'boys' and student_gender != 'male') or 
+        (hostel.hostel_type == 'girls' and student_gender != 'female')):
+        messages.error(request, "You cannot access this hostel.")
+        return redirect('hostel_list')
+    
+    # Get available rooms
+    current_academic_year = AcademicYear.objects.filter(is_current=True).first()
+    rooms = hostel.rooms.filter(is_available=True)
+    
+    # Calculate bed availability for each room
+    room_availability = []
+    for room in rooms:
+        room_info = {
+            'room': room,
+            'available_beds': room.available_beds,
+            'occupied_beds': room.occupied_beds,
+            'beds': room.beds.all().order_by('bed_number')
+        }
+        room_availability.append(room_info)
+    
+    # Get fee structure
+    fee_structure = None
+    if current_academic_year:
+        fee_structure = HostelFeeStructure.objects.filter(
+            hostel=hostel,
+            academic_year=current_academic_year
+        ).first()
+    
+    context = {
+        'hostel': hostel,
+        'room_availability': room_availability,
+        'fee_structure': fee_structure,
+        'student': student,
+    }
+    
+    return render(request, 'hostel/hostel_detail.html', context)
+
+
+@login_required
+def room_detail(request, room_id):
+    """View to display room details and available beds"""
+    if not hasattr(request.user, 'student_profile'):
+        messages.error(request, "Only students can access this page.")
+        return redirect('home')
+    
+    student = request.user.student_profile
+    room = get_object_or_404(HostelRoom, id=room_id, is_available=True)
+    
+    # Check if student can access this room
+    student_gender = getattr(student.user, 'gender', None)
+    if ((room.hostel.hostel_type == 'boys' and student_gender != 'male') or 
+        (room.hostel.hostel_type == 'girls' and student_gender != 'female')):
+        messages.error(request, "You cannot access this room.")
+        return redirect('hostel_list')
+    
+    # Get bed details with availability
+    beds = room.beds.all().order_by('bed_number')
+    bed_details = []
+    
+    for bed in beds:
+        bed_info = {
+            'bed': bed,
+            'is_available': bed.is_available,
+            'current_occupant': bed.current_occupant,
+            'can_book': bed.can_be_booked(student)[0] if bed.is_available else False
+        }
+        bed_details.append(bed_info)
+    
+    context = {
+        'room': room,
+        'bed_details': bed_details,
+        'student': student,
+    }
+    
+    return render(request, 'hostel/room_detail.html', context)
+
+
+@login_required
+def apply_hostel_booking(request, bed_id):
+    """View for applying for hostel booking for a specific bed"""
+    if not hasattr(request.user, 'student_profile'):
+        messages.error(request, "Only students can access this page.")
+        return redirect('home')
+    
+    student = request.user.student_profile
+    bed = get_object_or_404(HostelBed, id=bed_id)
+    
+    # Check eligibility
+    if student.current_year != 1 or student.current_semester != 1:
+        messages.error(request, "Only first-year, first-semester students can apply for hostel.")
+        return redirect('hostel_list')
+    
+    # Check if bed can be booked
+    can_book, message = bed.can_be_booked(student)
+    if not can_book:
+        messages.error(request, message)
+        return redirect('room_detail', room_id=bed.room.id)
+    
+    current_academic_year = AcademicYear.objects.filter(is_current=True).first()
+    
+    # Check if student already has a booking
+    existing_booking = HostelBooking.objects.filter(
+        student=student,
+        academic_year=current_academic_year
+    ).first()
+    
+    if existing_booking:
+        messages.error(request, "You already have a hostel booking for this academic year.")
+        return redirect('hostel_booking_dashboard')
+    
+    if request.method == 'POST':
+        form = HostelBookingForm(request.POST)
+        if form.is_valid():
+            booking = form.save(commit=False)
+            booking.student = student
+            booking.bed = bed
+            booking.academic_year = current_academic_year
+            
+            try:
+                booking.save()
+                messages.success(request, f"Your hostel booking application for bed {bed.bed_name} has been submitted successfully.")
+                return redirect('hostel_booking_dashboard')
+            except Exception as e:
+                messages.error(request, f"Error submitting application: {str(e)}")
+    else:
+        form = HostelBookingForm()
+    
+    # Get fee structure
+    fee_structure = HostelFeeStructure.objects.filter(
+        hostel=bed.room.hostel,
+        academic_year=current_academic_year
+    ).first()
+    
+    context = {
+        'form': form,
+        'bed': bed,
+        'room': bed.room,
+        'hostel': bed.room.hostel,
+        'fee_structure': fee_structure,
+        'student': student,
+    }
+    
+    return render(request, 'hostel/apply_booking.html', context)
+
+
+@login_required
+def get_room_beds(request, room_id):
+    """AJAX view to get available beds for a room"""
+    if not hasattr(request.user, 'student_profile'):
+        return JsonResponse({'error': 'Unauthorized'}, status=403)
+    
+    student = request.user.student_profile
+    room = get_object_or_404(HostelRoom, id=room_id)
+    
+    # Check if student can access this room
+    student_gender = getattr(student.user, 'gender', None)
+    if ((room.hostel.hostel_type == 'boys' and student_gender != 'male') or 
+        (room.hostel.hostel_type == 'girls' and student_gender != 'female')):
+        return JsonResponse({'error': 'Access denied'}, status=403)
+    
+    beds = room.beds.all().order_by('bed_number')
+    bed_data = []
+    
+    for bed in beds:
+        can_book, message = bed.can_be_booked(student)
+        bed_info = {
+            'id': bed.id,
+            'bed_number': bed.bed_number,
+            'bed_name': bed.bed_name,
+            'is_available': bed.is_available,
+            'is_maintenance': bed.is_maintenance,
+            'bed_type': bed.bed_type,
+            'facilities': bed.facilities,
+            'can_book': can_book,
+            'message': message,
+            'current_occupant': bed.current_occupant.user.get_full_name() if bed.current_occupant else None
+        }
+        bed_data.append(bed_info)
+    
+    return JsonResponse({'beds': bed_data})
+
+
+@login_required
+def booking_history(request):
+    """View to display student's booking history"""
+    if not hasattr(request.user, 'student_profile'):
+        messages.error(request, "Only students can access this page.")
+        return redirect('home')
+    
+    student = request.user.student_profile
+    
+    bookings = HostelBooking.objects.filter(student=student).order_by('-booking_date')
+    
+    paginator = Paginator(bookings, 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    context = {
+        'bookings': page_obj,
+        'student': student,
+    }
+    
+    return render(request, 'hostel/booking_history.html', context)
+
+
+@login_required
+@require_http_methods(["POST"])
+def cancel_booking(request, booking_id):
+    """View to cancel a hostel booking"""
+    if not hasattr(request.user, 'student_profile'):
+        messages.error(request, "Only students can access this page.")
+        return redirect('home')
+    
+    student = request.user.student_profile
+    booking = get_object_or_404(HostelBooking, id=booking_id, student=student)
+    
+    if booking.status in ['approved', 'pending']:
+        booking.status = 'cancelled'
+        booking.is_active = False
+        booking.save()
+        messages.success(request, "Your booking has been cancelled successfully.")
+    else:
+        messages.error(request, "This booking cannot be cancelled.")
+    
+    return redirect('hostel_booking_dashboard')
+
+
+# Quick booking view for direct bed selection
+@login_required
+def quick_bed_booking(request):
+    """View for quick bed booking with filters"""
+    if not hasattr(request.user, 'student_profile'):
+        messages.error(request, "Only students can access this page.")
+        return redirect('home')
+    
+    student = request.user.student_profile
+    
+    # Check eligibility
+    if student.current_year != 1 or student.current_semester != 1:
+        messages.error(request, "Only first-year, first-semester students can apply for hostel.")
+        return redirect('hostel_list')
+    
+    current_academic_year = AcademicYear.objects.filter(is_current=True).first()
+    
+    # Check if student already has a booking
+    existing_booking = HostelBooking.objects.filter(
+        student=student,
+        academic_year=current_academic_year
+    ).first()
+    
+    if existing_booking:
+        messages.error(request, "You already have a hostel booking for this academic year.")
+        return redirect('hostel_booking_dashboard')
+    
+    # Get available beds for student
+    from .models import get_available_beds_for_student
+    available_beds = get_available_beds_for_student(student, current_academic_year)
+    
+    # Apply filters
+    hostel_filter = request.GET.get('hostel')
+    room_filter = request.GET.get('room')
+    bed_type_filter = request.GET.get('bed_type')
+    floor_filter = request.GET.get('floor')
+    
+    if hostel_filter:
+        available_beds = available_beds.filter(room__hostel_id=hostel_filter)
+    
+    if room_filter:
+        available_beds = available_beds.filter(room_id=room_filter)
+    
+    if bed_type_filter:
+        available_beds = available_beds.filter(bed_type=bed_type_filter)
+    
+    if floor_filter:
+        available_beds = available_beds.filter(room__floor=floor_filter)
+    
+    # Get filter options
+    student_gender = getattr(student.user, 'gender', None)
+    if student_gender == 'male':
+        hostels = Hostel.objects.filter(hostel_type='boys', is_active=True)
+    elif student_gender == 'female':
+        hostels = Hostel.objects.filter(hostel_type='girls', is_active=True)
+    else:
+        hostels = Hostel.objects.none()
+    
+    bed_types = HostelBed.objects.values_list('bed_type', flat=True).distinct()
+    floors = HostelRoom.objects.values_list('floor', flat=True).distinct().order_by('floor')
+    
+    # Pagination
+    paginator = Paginator(available_beds, 20)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    context = {
+        'available_beds': page_obj,
+        'hostels': hostels,
+        'bed_types': bed_types,
+        'floors': floors,
+        'student': student,
+        'filters': {
+            'hostel': hostel_filter,
+            'room': room_filter,
+            'bed_type': bed_type_filter,
+            'floor': floor_filter,
+        }
+    }
+    
+    return render(request, 'hostel/quick_bed_booking.html', context)
+
+
+# Admin Views
+@login_required
+def admin_hostel_bookings(request):
+    """Admin view to manage hostel bookings"""
+    if not request.user.is_staff:
+        messages.error(request, "You don't have permission to access this page.")
+        return redirect('home')
+    
+    bookings = HostelBooking.objects.all().order_by('-booking_date')
+    
+    # Filter by status
+    status_filter = request.GET.get('status')
+    if status_filter:
+        bookings = bookings.filter(status=status_filter)
+    
+    # Filter by hostel
+    hostel_filter = request.GET.get('hostel')
+    if hostel_filter:
+        bookings = bookings.filter(bed__room__hostel_id=hostel_filter)
+    
+    # Filter by room
+    room_filter = request.GET.get('room')
+    if room_filter:
+        bookings = bookings.filter(bed__room_id=room_filter)
+    
+    # Search
+    search = request.GET.get('search')
+    if search:
+        bookings = bookings.filter(
+            Q(student__student_id__icontains=search) |
+            Q(student__user__first_name__icontains=search) |
+            Q(student__user__last_name__icontains=search) |
+            Q(bed__bed_name__icontains=search)
+        )
+    
+    paginator = Paginator(bookings, 20)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    hostels = Hostel.objects.filter(is_active=True)
+    
+    context = {
+        'bookings': page_obj,
+        'hostels': hostels,
+        'status_filter': status_filter,
+        'hostel_filter': hostel_filter,
+        'room_filter': room_filter,
+        'search': search,
+    }
+    
+    return render(request, 'admin/hostel_bookings.html', context)
+
+
+@login_required
+@require_http_methods(["POST"])
+def admin_approve_booking(request, booking_id):
+    """Admin view to approve a hostel booking"""
+    if not request.user.is_staff:
+        messages.error(request, "You don't have permission to access this page.")
+        return redirect('home')
+    
+    booking = get_object_or_404(HostelBooking, id=booking_id)
+    
+    if booking.status == 'pending':
+        booking.status = 'approved'
+        booking.approved_by = request.user
+        booking.save()
+        messages.success(request, f"Booking for {booking.student.student_id} has been approved.")
+    else:
+        messages.error(request, "This booking cannot be approved.")
+    
+    return redirect('admin_hostel_bookings')
+
+
+@login_required
+@require_http_methods(["POST"])
+def admin_reject_booking(request, booking_id):
+    """Admin view to reject a hostel booking"""
+    if not request.user.is_staff:
+        messages.error(request, "You don't have permission to access this page.")
+        return redirect('home')
+    
+    booking = get_object_or_404(HostelBooking, id=booking_id)
+    rejection_reason = request.POST.get('rejection_reason', '')
+    
+    if booking.status == 'pending':
+        booking.status = 'rejected'
+        booking.rejection_reason = rejection_reason
+        booking.save()
+        messages.success(request, f"Booking for {booking.student.student_id} has been rejected.")
+    else:
+        messages.error(request, "This booking cannot be rejected.")
+    
+    return redirect('admin_hostel_bookings')

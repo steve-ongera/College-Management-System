@@ -776,8 +776,13 @@ class StudentReport(models.Model):
     def __str__(self):
         return f"{self.student.student_id} - {self.subject} ({self.status})"
 
-
 # Hostel Management Models
+from django.db import models
+from django.core.validators import MinValueValidator, MaxValueValidator
+from django.core.exceptions import ValidationError
+from django.utils import timezone
+
+
 class Hostel(models.Model):
     HOSTEL_TYPES = (
         ('boys', 'Boys Hostel'),
@@ -805,6 +810,20 @@ class Hostel(models.Model):
     @property
     def occupied_rooms(self):
         return self.rooms.filter(is_available=False).count()
+    
+    @property
+    def total_beds(self):
+        return self.rooms.aggregate(
+            total=models.Count('beds')
+        )['total'] or 0
+    
+    @property
+    def available_beds(self):
+        return sum(room.available_beds for room in self.rooms.all())
+    
+    @property
+    def occupied_beds(self):
+        return sum(room.occupied_beds for room in self.rooms.all())
 
 
 class HostelRoom(models.Model):
@@ -822,24 +841,118 @@ class HostelRoom(models.Model):
     def save(self, *args, **kwargs):
         if not self.room_name:
             self.room_name = f"{self.hostel.initials}-{self.room_number}"
+        
+        # Check if this is a new room or total_beds has changed
+        is_new = self.pk is None
+        old_total_beds = None
+        if not is_new:
+            old_instance = HostelRoom.objects.get(pk=self.pk)
+            old_total_beds = old_instance.total_beds
+        
         super().save(*args, **kwargs)
+        
+        # Create beds for new room or when total_beds changes
+        if is_new or (old_total_beds and old_total_beds != self.total_beds):
+            self.create_beds()
+    
+    def create_beds(self):
+        """Create beds for this room"""
+        # Delete existing beds if total_beds decreased
+        if self.beds.count() > self.total_beds:
+            beds_to_delete = self.beds.all()[self.total_beds:]
+            for bed in beds_to_delete:
+                bed.delete()
+        
+        # Create new beds if needed
+        existing_beds = self.beds.count()
+        for bed_num in range(existing_beds + 1, self.total_beds + 1):
+            HostelBed.objects.create(
+                room=self,
+                bed_number=bed_num,
+                bed_name=f"{self.room_name}-B{bed_num}"
+            )
     
     def __str__(self):
         return f"{self.room_name} ({self.hostel.name})"
     
     @property
     def available_beds(self):
-        return self.total_beds - self.bookings.filter(
-            is_active=True,
-            academic_year__is_current=True
-        ).count()
+        return self.beds.filter(is_available=True).count()
     
     @property
     def occupied_beds(self):
-        return self.bookings.filter(
+        return self.beds.filter(is_available=False).count()
+    
+    def get_available_beds(self):
+        """Get all available beds in this room"""
+        return self.beds.filter(is_available=True)
+    
+    def get_occupied_beds(self):
+        """Get all occupied beds in this room"""
+        return self.beds.filter(is_available=False)
+
+
+class HostelBed(models.Model):
+    room = models.ForeignKey(HostelRoom, on_delete=models.CASCADE, related_name='beds')
+    bed_number = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(8)])
+    bed_name = models.CharField(max_length=25)  # e.g., 'BH1-101-B1'
+    is_available = models.BooleanField(default=True)
+    is_maintenance = models.BooleanField(default=False)  # For maintenance/repair status
+    bed_type = models.CharField(max_length=20, choices=[
+        ('single', 'Single Bed'),
+        ('bunk_top', 'Bunk Bed (Top)'),
+        ('bunk_bottom', 'Bunk Bed (Bottom)'),
+    ], default='single')
+    facilities = models.TextField(blank=True)  # e.g., 'Study Table, Locker, Window Side'
+    
+    class Meta:
+        unique_together = ['room', 'bed_number']
+        ordering = ['bed_number']
+    
+    # def save(self, *args, **kwargs):
+    #     if not self.bed_name:
+    #         self.bed_name = f"{self.room.room_name}-B{self.bed_number}"
+        
+    #     # Update availability based on current bookings
+    #     if not self.is_maintenance:
+    #         current_booking = self.bookings.filter(
+    #             is_active=True,
+    #             status='approved',
+    #             academic_year__is_current=True
+    #         ).first()
+    #         self.is_available = current_booking is None
+    #     else:
+    #         self.is_available = False
+        
+    #     super().save(*args, **kwargs)
+    
+    def __str__(self):
+        return f"{self.bed_name} ({'Available' if self.is_available else 'Occupied'})"
+    
+    @property
+    def current_occupant(self):
+        """Get current student occupying this bed"""
+        booking = self.bookings.filter(
             is_active=True,
+            status='approved',
             academic_year__is_current=True
-        ).count()
+        ).first()
+        return booking.student if booking else None
+    
+    def can_be_booked(self, student=None, academic_year=None):
+        """Check if this bed can be booked"""
+        if not self.is_available or self.is_maintenance:
+            return False, "Bed is not available"
+        
+        if student:
+            # Check gender compatibility
+            student_gender = getattr(student.user, 'gender', None)
+            if self.room.hostel.hostel_type == 'boys' and student_gender == 'female':
+                return False, "Female students cannot book beds in boys' hostel"
+            elif self.room.hostel.hostel_type == 'girls' and student_gender == 'male':
+                return False, "Male students cannot book beds in girls' hostel"
+        
+        return True, "Bed is available for booking"
 
 
 class HostelBooking(models.Model):
@@ -851,9 +964,8 @@ class HostelBooking(models.Model):
     )
     
     student = models.ForeignKey('Student', on_delete=models.CASCADE, related_name='hostel_bookings')
-    room = models.ForeignKey(HostelRoom, on_delete=models.CASCADE, related_name='bookings')
+    bed = models.ForeignKey(HostelBed, on_delete=models.CASCADE, related_name='bookings')
     academic_year = models.ForeignKey('AcademicYear', on_delete=models.CASCADE, related_name='hostel_bookings')
-    bed_number = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(4)])
     booking_date = models.DateTimeField(auto_now_add=True)
     status = models.CharField(max_length=20, choices=BOOKING_STATUS, default='pending')
     check_in_date = models.DateField(null=True, blank=True)
@@ -878,35 +990,45 @@ class HostelBooking(models.Model):
             if self.student.current_semester != 1:
                 raise ValidationError("Hostel applications are only available for first semester students.")
             
-            # Check gender compatibility
-            if self.room:
-                student_gender = getattr(self.student.user, 'gender', None)  # Assuming gender field exists
-                if self.room.hostel.hostel_type == 'boys' and student_gender == 'female':
-                    raise ValidationError("Female students cannot apply for boys' hostel.")
-                elif self.room.hostel.hostel_type == 'girls' and student_gender == 'male':
-                    raise ValidationError("Male students cannot apply for girls' hostel.")
-        
-        # Check if bed is available
-        if self.room and self.bed_number:
-            existing_booking = HostelBooking.objects.filter(
-                room=self.room,
-                bed_number=self.bed_number,
-                academic_year=self.academic_year,
-                is_active=True,
-                status='approved'
-            ).exclude(id=self.id)
-            
-            if existing_booking.exists():
-                raise ValidationError(f"Bed {self.bed_number} in room {self.room.room_name} is already occupied.")
+            # Check if bed can be booked
+            if self.bed:
+                can_book, message = self.bed.can_be_booked(self.student, self.academic_year)
+                if not can_book:
+                    raise ValidationError(message)
+                
+                # Check if bed is already booked for this academic year
+                existing_booking = HostelBooking.objects.filter(
+                    bed=self.bed,
+                    academic_year=self.academic_year,
+                    is_active=True,
+                    status='approved'
+                ).exclude(id=self.id)
+                
+                if existing_booking.exists():
+                    raise ValidationError(f"Bed {self.bed.bed_name} is already booked for this academic year.")
     
     def save(self, *args, **kwargs):
         self.clean()
         if self.status == 'approved' and not self.approved_at:
             self.approved_at = timezone.now()
         super().save(*args, **kwargs)
+        
+        # Update bed availability when booking status changes
+        if self.bed:
+            self.bed.save()
     
     def __str__(self):
-        return f"{self.student.student_id} - {self.room.room_name} - Bed {self.bed_number}"
+        return f"{self.student.student_id} - {self.bed.bed_name}"
+    
+    @property
+    def room(self):
+        """Get the room associated with this booking"""
+        return self.bed.room
+    
+    @property
+    def hostel(self):
+        """Get the hostel associated with this booking"""
+        return self.bed.room.hostel
 
 
 class HostelFeeStructure(models.Model):
@@ -954,4 +1076,44 @@ class HostelFeePayment(models.Model):
     def __str__(self):
         return f"{self.booking.student.student_id} - {self.receipt_number}"
 
+
+# Utility functions for views
+def get_available_beds_for_student(student, academic_year):
+    """Get all available beds that a student can book"""
+    student_gender = getattr(student.user, 'gender', None)
+    
+    # Filter hostels based on gender
+    if student_gender == 'male':
+        hostels = Hostel.objects.filter(hostel_type='boys', is_active=True)
+    elif student_gender == 'female':
+        hostels = Hostel.objects.filter(hostel_type='girls', is_active=True)
+    else:
+        return HostelBed.objects.none()
+    
+    # Get available beds from these hostels
+    available_beds = HostelBed.objects.filter(
+        room__hostel__in=hostels,
+        is_available=True,
+        is_maintenance=False
+    ).select_related('room', 'room__hostel')
+    
+    return available_beds
+
+
+def get_room_bed_availability(room):
+    """Get detailed bed availability for a room"""
+    beds = room.beds.all().order_by('bed_number')
+    bed_info = []
+    
+    for bed in beds:
+        info = {
+            'bed': bed,
+            'is_available': bed.is_available,
+            'current_occupant': bed.current_occupant,
+            'bed_type': bed.bed_type,
+            'facilities': bed.facilities
+        }
+        bed_info.append(info)
+    
+    return bed_info
 
