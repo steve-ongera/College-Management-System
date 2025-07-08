@@ -6,6 +6,11 @@ import uuid
 
 # Custom User Model
 class User(AbstractUser):
+    GENDER_CHOICES = (
+        ('male', 'Male'),
+        ('female', 'Female'),
+        ('other', 'Other'),
+    )
     USER_TYPES = (
         ('admin', 'Admin'),
         ('student', 'Student'),
@@ -16,6 +21,7 @@ class User(AbstractUser):
     user_type = models.CharField(max_length=20, choices=USER_TYPES)
     phone = models.CharField(max_length=15, blank=True)
     address = models.TextField(blank=True)
+    gender = models.CharField(max_length=10, choices=GENDER_CHOICES, blank=True)
     date_of_birth = models.DateField(null=True, blank=True)
     profile_picture = models.ImageField(upload_to='profiles/', null=True, blank=True)
     is_active = models.BooleanField(default=True)
