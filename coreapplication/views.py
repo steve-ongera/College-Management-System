@@ -69,6 +69,14 @@ def student_dashboard(request):
     available_subjects = []
     if not current_enrollments.exists():
         available_subjects = current_subjects
+
+    # Get hostel booking information
+    current_hostel_booking = HostelBooking.objects.filter(
+        student=student,
+        is_active=True,
+        status='approved',
+        academic_year=current_academic_year
+    ).select_related('bed__room__hostel').first()
     
     # Get recent grades
     recent_grades = Grade.objects.filter(
@@ -181,6 +189,7 @@ def student_dashboard(request):
         'current_semester_progress': current_semester_progress,
         'current_semester_subjects': current_semester_subjects,
         'current_semester_completed': current_semester_completed,
+        'hostel_booking': current_hostel_booking,  # Add hostel booking 
     }
     
     return render(request, 'student/dashboard.html', context)
@@ -193,18 +202,19 @@ def student_profile(request):
     if request.method == 'POST':
         # Handle profile update
         user = request.user
-        user.first_name = request.POST.get('first_name')
-        user.last_name = request.POST.get('last_name')
-        user.email = request.POST.get('email')
-        user.phone = request.POST.get('phone')
-        user.address = request.POST.get('address')
+        user.first_name = request.POST.get('first_name', user.first_name)
+        user.last_name = request.POST.get('last_name', user.last_name)
+        user.email = request.POST.get('email', user.email)
+        user.phone = request.POST.get('phone', user.phone)
+        user.address = request.POST.get('address', user.address)
         user.save()
         
-        student.guardian_name = request.POST.get('guardian_name')
-        student.guardian_phone = request.POST.get('guardian_phone')
-        student.guardian_relation = request.POST.get('guardian_relation')
-        student.emergency_contact = request.POST.get('emergency_contact')
-        student.blood_group = request.POST.get('blood_group')
+        # Get or use existing values for required fields
+        student.guardian_name = request.POST.get('guardian_name', student.guardian_name)
+        student.guardian_phone = request.POST.get('guardian_phone', student.guardian_phone)
+        student.guardian_relation = request.POST.get('guardian_relation', student.guardian_relation)
+        student.emergency_contact = request.POST.get('emergency_contact', student.emergency_contact)
+        student.blood_group = request.POST.get('blood_group', student.blood_group)
         student.save()
         
         messages.success(request, 'Profile updated successfully')

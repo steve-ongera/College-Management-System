@@ -143,10 +143,15 @@
                         </div>
                         <div class="col-md-9">
                             <div class="card-body">
-
-                                <span class="fs-6" id="hostelName"> Nyayo</span> <br />
-                                <span class="" id="hostelTerm"> Sem 2</span><br />
-                                <span class="" id="hostelDate">Room 212</span>
+                                {% if hostel_booking %}
+                                <span class="fs-6" id="hostelName"> {{ hostel_booking.bed.room.hostel.name }}</span> <br />
+                                <span class="" id="hostelTerm"> {{ hostel_booking.bed.room.room_name }}</span><br />
+                                <span class="" id="hostelDate">{{ hostel_booking.bed.bed_name }}</span>
+                                {% else %}
+                                <span class="fs-6" id="hostelName"> House Name</span> <br />
+                                <span class="" id="hostelTerm"> Room No</span><br />
+                                <span class="" id="hostelDate">Bed No</span>
+                                {% endif %}
                             </div>
                         </div>
                     </div>
