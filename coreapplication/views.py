@@ -18,6 +18,7 @@ def student_login(request):
         user = authenticate(request, username=username, password=password)
         if user is not None and user.user_type == 'student':
             login(request, user)
+            messages.success(request, f"Welcome back, {user.get_full_name() or user.username}!")
             return redirect('student_dashboard')
         else:
             messages.error(request, 'Invalid credentials or not a student account')
@@ -32,6 +33,7 @@ def student_register(request):
 
 def student_logout(request):
     logout(request)
+    messages.success(request, "You have been logged out successfully.")
     return redirect('student_login')
 
 from django.shortcuts import render, get_object_or_404
@@ -1475,6 +1477,8 @@ def room_detail(request, room_id):
 @login_required
 def apply_hostel_booking(request, bed_id):
     """View for applying for hostel booking for a specific bed"""
+    
+    # Check if user has student profile
     if not hasattr(request.user, 'student_profile'):
         messages.error(request, "Only students can access this page.")
         return redirect('home')
@@ -1495,6 +1499,10 @@ def apply_hostel_booking(request, bed_id):
     
     current_academic_year = AcademicYear.objects.filter(is_current=True).first()
     
+    if not current_academic_year:
+        messages.error(request, "No current academic year is set. Please contact administration.")
+        return redirect('hostel_list')
+    
     # Check if student already has a booking
     existing_booking = HostelBooking.objects.filter(
         student=student,
@@ -1508,17 +1516,44 @@ def apply_hostel_booking(request, bed_id):
     if request.method == 'POST':
         form = HostelBookingForm(request.POST)
         if form.is_valid():
-            booking = form.save(commit=False)
-            booking.student = student
-            booking.bed = bed
-            booking.academic_year = current_academic_year
-            
             try:
-                booking.save()
-                messages.success(request, f"Your hostel booking application for bed {bed.bed_name} has been submitted successfully.")
-                return redirect('hostel_booking_dashboard')
+                with transaction.atomic():
+                    # Create booking object manually with all required fields
+                    booking = HostelBooking(
+                        student=student,
+                        bed=bed,
+                        academic_year=current_academic_year,
+                        emergency_contact=form.cleaned_data['emergency_contact'],
+                        medical_info=form.cleaned_data.get('medical_info', ''),
+                        status='pending',
+                        is_active=True
+                    )
+                    
+                    # Now validate and save
+                    booking.full_clean()
+                    booking.save()
+                    
+                    # Mark bed as occupied
+                    bed.is_available = False
+                    bed.save()
+                    
+                    messages.success(request, f"Your hostel booking application for bed {bed.bed_name} has been submitted successfully.")
+                    return redirect('hostel_booking_dashboard')
+                    
+            except ValidationError as e:
+                if hasattr(e, 'message_dict'):
+                    for field, errors in e.message_dict.items():
+                        for error in errors:
+                            messages.error(request, f"{field}: {error}")
+                else:
+                    messages.error(request, f"Validation error: {str(e)}")
             except Exception as e:
                 messages.error(request, f"Error submitting application: {str(e)}")
+        else:
+            # Display form errors
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, f"{field}: {error}")
     else:
         form = HostelBookingForm()
     

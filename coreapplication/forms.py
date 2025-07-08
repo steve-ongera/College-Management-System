@@ -76,41 +76,25 @@ from .models import HostelBooking, HostelBed, HostelRoom, Hostel
 
 
 class HostelBookingForm(forms.ModelForm):
-    """Form for hostel booking application"""
-    
     class Meta:
         model = HostelBooking
         fields = ['emergency_contact', 'medical_info']
         widgets = {
             'emergency_contact': forms.TextInput(attrs={
                 'class': 'form-control',
-                'placeholder': 'Enter emergency contact number',
-                'required': True
+                'placeholder': 'Emergency contact number'
             }),
             'medical_info': forms.Textarea(attrs={
                 'class': 'form-control',
-                'placeholder': 'Enter any medical conditions or allergies (optional)',
-                'rows': 3
+                'rows': 3,
+                'placeholder': 'Any medical information or conditions'
             }),
         }
-        labels = {
-            'emergency_contact': 'Emergency Contact Number',
-            'medical_info': 'Medical Information',
-        }
-        help_texts = {
-            'emergency_contact': 'Please provide a valid contact number for emergencies.',
-            'medical_info': 'Please mention any medical conditions, allergies, or special requirements.',
-        }
     
-    def clean_emergency_contact(self):
-        contact = self.cleaned_data.get('emergency_contact')
-        if contact:
-            # Remove any non-digit characters
-            cleaned_contact = ''.join(filter(str.isdigit, contact))
-            if len(cleaned_contact) < 10:
-                raise ValidationError("Please enter a valid 10-digit contact number.")
-            return cleaned_contact
-        return contact
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['emergency_contact'].required = True
+        self.fields['medical_info'].required = False
 
 
 class BedSelectionForm(forms.Form):

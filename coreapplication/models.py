@@ -28,6 +28,10 @@ class User(AbstractUser):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    @property
+    def is_student(self):
+        return self.user_type == 'student' and hasattr(self, 'student_profile')
+
     def __str__(self):
         return f"{self.username} ({self.user_type})"
 
@@ -981,31 +985,34 @@ class HostelBooking(models.Model):
         unique_together = ['student', 'academic_year']  # One booking per student per academic year
         ordering = ['-booking_date']
     
-    def clean(self):
-        if self.student:
-            # Check if student is in year 1, semester 1
-            if self.student.current_year != 1:
-                raise ValidationError("Only first-year students can apply for hostel accommodation.")
+    # def clean(self):
+    #     # Only validate if all required fields are present
+    #     if not self.student:
+    #         return  # Skip validation if student is not set
             
-            if self.student.current_semester != 1:
-                raise ValidationError("Hostel applications are only available for first semester students.")
-            
-            # Check if bed can be booked
-            if self.bed:
-                can_book, message = self.bed.can_be_booked(self.student, self.academic_year)
-                if not can_book:
-                    raise ValidationError(message)
-                
-                # Check if bed is already booked for this academic year
-                existing_booking = HostelBooking.objects.filter(
-                    bed=self.bed,
-                    academic_year=self.academic_year,
-                    is_active=True,
-                    status='approved'
-                ).exclude(id=self.id)
-                
-                if existing_booking.exists():
-                    raise ValidationError(f"Bed {self.bed.bed_name} is already booked for this academic year.")
+    #     # Check if student is in year 1, semester 1
+    #     if self.student.current_year != 1:
+    #         raise ValidationError("Only first-year students can apply for hostel accommodation.")
+                    
+    #     if self.student.current_semester != 1:
+    #         raise ValidationError("Hostel applications are only available for first semester students.")
+        
+    #     # Only validate bed if both bed and academic_year are present
+    #     if self.bed and self.academic_year:
+    #         can_book, message = self.bed.can_be_booked(self.student, self.academic_year)
+    #         if not can_book:
+    #             raise ValidationError(message)
+                            
+    #         # Check if bed is already booked for this academic year
+    #         existing_booking = HostelBooking.objects.filter(
+    #             bed=self.bed,
+    #             academic_year=self.academic_year,
+    #             is_active=True,
+    #             status='approved'
+    #         ).exclude(id=self.id)
+                            
+    #         if existing_booking.exists():
+    #             raise ValidationError(f"Bed {self.bed.bed_name} is already booked for this academic year.")
     
     def save(self, *args, **kwargs):
         self.clean()
