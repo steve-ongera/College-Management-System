@@ -1968,3 +1968,226 @@ def student_transcript(request):
     }
     
     return render(request, 'student/student_transcript.html', context)
+
+
+# views.py
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.http import JsonResponse, HttpResponseForbidden
+from django.db import transaction
+from django.forms import modelformset_factory
+from django.core.exceptions import ValidationError
+from .models import Student, Subject, Enrollment, Grade, Semester, AcademicYear
+import json
+
+@login_required
+def admin_marks_entry(request):
+    # Check if user is admin
+    if request.user.user_type != 'admin':
+        return HttpResponseForbidden("Access denied. Admins only.")
+    
+    # Get current academic year and semester
+    current_academic_year = AcademicYear.objects.filter(is_current=True).first()
+    current_semester = Semester.objects.filter(is_current=True).first()
+    
+    if not current_academic_year or not current_semester:
+        messages.error(request, "Please set current academic year and semester first.")
+        return render(request, 'admin_marks_entry.html', {'error': 'No current academic year/semester set'})
+    
+    student = None
+    enrollments = []
+    grades_data = {}
+    
+    # Handle student search
+    if request.method == 'GET' and 'student_id' in request.GET:
+        student_id = request.GET.get('student_id')
+        if student_id:
+            try:
+                student = Student.objects.get(student_id=student_id, status='active')
+                
+                # Get enrollments for current semester
+                enrollments = Enrollment.objects.filter(
+                    student=student,
+                    semester=current_semester,
+                    is_active=True
+                ).select_related('subject').order_by('subject__code')
+                
+                # Get existing grades
+                for enrollment in enrollments:
+                    try:
+                        grade = Grade.objects.get(enrollment=enrollment)
+                        grades_data[enrollment.id] = {
+                            'theory_marks': grade.theory_marks,
+                            'practical_marks': grade.practical_marks,
+                            'total_marks': grade.total_marks,
+                            'grade': grade.grade,
+                            'grade_points': grade.grade_points,
+                            'is_passed': grade.is_passed,
+                            'exam_date': grade.exam_date.strftime('%Y-%m-%d') if grade.exam_date else ''
+                        }
+                    except Grade.DoesNotExist:
+                        grades_data[enrollment.id] = {
+                            'theory_marks': None,
+                            'practical_marks': None,
+                            'total_marks': None,
+                            'grade': '',
+                            'grade_points': None,
+                            'is_passed': False,
+                            'exam_date': ''
+                        }
+                
+            except Student.DoesNotExist:
+                messages.error(request, f"Student with ID '{student_id}' not found or not active.")
+    
+    # Handle marks submission
+    if request.method == 'POST' and 'save_marks' in request.POST:
+        student_id = request.POST.get('student_id')
+        if not student_id:
+            messages.error(request, "Student ID is required.")
+            return render(request, 'admin_marks_entry.html', {})
+        
+        try:
+            student = Student.objects.get(student_id=student_id, status='active')
+            enrollments = Enrollment.objects.filter(
+                student=student,
+                semester=current_semester,
+                is_active=True
+            ).select_related('subject')
+            
+            with transaction.atomic():
+                for enrollment in enrollments:
+                    enrollment_id = str(enrollment.id)
+                    
+                    # Get form data
+                    theory_marks = request.POST.get(f'theory_marks_{enrollment_id}')
+                    practical_marks = request.POST.get(f'practical_marks_{enrollment_id}')
+                    exam_date = request.POST.get(f'exam_date_{enrollment_id}')
+                    
+                    # Convert to appropriate types
+                    theory_marks = float(theory_marks) if theory_marks else None
+                    practical_marks = float(practical_marks) if practical_marks else None
+                    exam_date = exam_date if exam_date else None
+                    
+                    # Calculate total marks
+                    total_marks = 0
+                    if theory_marks is not None:
+                        total_marks += theory_marks
+                    if practical_marks is not None:
+                        total_marks += practical_marks
+                    
+                    # Determine grade and grade points
+                    grade_letter, grade_points, is_passed = calculate_grade(total_marks)
+                    
+                    # Create or update grade
+                    grade, created = Grade.objects.get_or_create(
+                        enrollment=enrollment,
+                        defaults={
+                            'theory_marks': theory_marks,
+                            'practical_marks': practical_marks,
+                            'total_marks': total_marks,
+                            'grade': grade_letter,
+                            'grade_points': grade_points,
+                            'is_passed': is_passed,
+                            'exam_date': exam_date
+                        }
+                    )
+                    
+                    if not created:
+                        grade.theory_marks = theory_marks
+                        grade.practical_marks = practical_marks
+                        grade.total_marks = total_marks
+                        grade.grade = grade_letter
+                        grade.grade_points = grade_points
+                        grade.is_passed = is_passed
+                        grade.exam_date = exam_date
+                        grade.save()
+                
+                messages.success(request, f"Marks saved successfully for student {student.student_id}")
+                
+        except Student.DoesNotExist:
+            messages.error(request, f"Student with ID '{student_id}' not found.")
+        except Exception as e:
+            messages.error(request, f"Error saving marks: {str(e)}")
+    
+    # Get all students for dropdown (optional)
+    all_students = Student.objects.filter(status='active').order_by('student_id')
+    
+    context = {
+        'student': student,
+        'enrollments': enrollments,
+        'grades_data': grades_data,
+        'current_academic_year': current_academic_year,
+        'current_semester': current_semester,
+        'all_students': all_students,
+    }
+    
+    return render(request, 'admin/admin_marks_entry.html', context)
+
+def calculate_grade(total_marks):
+    """Calculate grade letter, grade points, and pass status based on total marks"""
+    if total_marks is None or total_marks == 0:
+        return '', None, False
+    
+    if total_marks >= 90:
+        return 'A+', 4.0, True
+    elif total_marks >= 80:
+        return 'A', 3.7, True
+    elif total_marks >= 70:
+        return 'B+', 3.3, True
+    elif total_marks >= 60:
+        return 'B', 3.0, True
+    elif total_marks >= 50:
+        return 'C+', 2.7, True
+    elif total_marks >= 40:
+        return 'C', 2.0, True
+    elif total_marks >= 30:
+        return 'D', 1.0, False
+    else:
+        return 'F', 0.0, False
+
+@login_required
+def get_student_info(request):
+    """AJAX endpoint to get student information"""
+    if request.user.user_type != 'admin':
+        return JsonResponse({'error': 'Access denied'}, status=403)
+    
+    student_id = request.GET.get('student_id')
+    if not student_id:
+        return JsonResponse({'error': 'Student ID required'}, status=400)
+    
+    try:
+        student = Student.objects.get(student_id=student_id, status='active')
+        current_semester = Semester.objects.filter(is_current=True).first()
+        
+        enrollments = Enrollment.objects.filter(
+            student=student,
+            semester=current_semester,
+            is_active=True
+        ).select_related('subject')
+        
+        data = {
+            'student': {
+                'id': student.student_id,
+                'name': student.user.get_full_name(),
+                'course': student.course.name,
+                'current_year': student.current_year,
+                'current_semester': student.current_semester,
+            },
+            'enrollments': [
+                {
+                    'id': enrollment.id,
+                    'subject_code': enrollment.subject.code,
+                    'subject_name': enrollment.subject.name,
+                    'credits': enrollment.subject.credits,
+                    'theory_hours': enrollment.subject.theory_hours,
+                    'practical_hours': enrollment.subject.practical_hours,
+                }
+                for enrollment in enrollments
+            ]
+        }
+        
+        return JsonResponse(data)
+        
+    except Student.DoesNotExist:
+        return JsonResponse({'error': 'Student not found'}, status=404)

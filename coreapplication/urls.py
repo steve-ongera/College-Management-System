@@ -60,6 +60,8 @@ urlpatterns = [
     path('reporting/', views.student_reporting_list, name='student_reporting_list'),
     path('reporting/current/', views.student_report_current_semester, name='student_report_current_semester'),
     path('student/transcript/', views.student_transcript, name='student_transcript'),
+    path('admin-marks-entry/', views.admin_marks_entry, name='admin_marks_entry'),
+    path('admin-student-info/', views.get_student_info, name='get_student_info'),
 
     
     # Admin URLs
