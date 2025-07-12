@@ -494,6 +494,30 @@ from .models import (
     HostelFeeStructure, HostelFeePayment
 )
 
+from .models import StudentReporting
+
+@admin.register(StudentReporting)
+class StudentReportingAdmin(admin.ModelAdmin):
+    list_display = (
+        'student', 
+        'semester_display', 
+        'reporting_type', 
+        'status', 
+        'reported_date', 
+        'confirmed_by',
+    )
+    list_filter = ('reporting_type', 'status', 'semester__academic_year')
+    search_fields = ('student__student_id', 'student__full_name', 'semester__academic_year__year')
+    readonly_fields = ('reported_date', 'created_at', 'updated_at')
+    ordering = ('-reported_date',)
+    
+    def semester_display(self, obj):
+        return obj.semester_display
+    semester_display.short_description = 'Semester'
+
+    def get_queryset(self, request):
+        queryset = super().get_queryset(request)
+        return queryset.select_related('student', 'semester__academic_year', 'confirmed_by')
 
 from django.contrib import admin
 from .models import (
