@@ -182,6 +182,7 @@ class Semester(models.Model):
     def __str__(self):
         return f"{self.academic_year.year} - Semester {self.semester_number}"
 
+
 class Enrollment(models.Model):
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='enrollments')
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name='enrollments')
@@ -715,70 +716,39 @@ class NewsArticle(models.Model):
 
 # Additional models to add to your existing models.py file
 
-from django.db import models
-from django.contrib.auth.models import AbstractUser
-from django.core.validators import MinValueValidator, MaxValueValidator
-from django.utils import timezone
-from django.core.exceptions import ValidationError
-
-# Student Reporting Models
-class StudentReport(models.Model):
-    REPORT_TYPES = (
-        ('academic', 'Academic Issue'),
-        ('disciplinary', 'Disciplinary Issue'),
-        ('facility', 'Facility Issue'),
-        ('health', 'Health Issue'),
-        ('financial', 'Financial Issue'),
-        ('accommodation', 'Accommodation Issue'),
-        ('other', 'Other'),
+class StudentReporting(models.Model):
+    REPORTING_TYPES = (
+        ('online', 'Reported Online'),
+        ('physical', 'Reported Physical'),
+        ('erp', 'Reported Via ERP'),
     )
     
     STATUS_CHOICES = (
         ('pending', 'Pending'),
-        ('in_progress', 'In Progress'),
-        ('resolved', 'Resolved'),
-        ('dismissed', 'Dismissed'),
+        ('confirmed', 'Confirmed'),
+        ('rejected', 'Rejected'),
     )
     
-    student = models.ForeignKey('Student', on_delete=models.CASCADE, related_name='reports')
-    semester = models.ForeignKey('Semester', on_delete=models.CASCADE, related_name='student_reports')
-    report_type = models.CharField(max_length=20, choices=REPORT_TYPES)
-    subject = models.CharField(max_length=200)
-    description = models.TextField()
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='reports')
+    semester = models.ForeignKey(Semester, on_delete=models.CASCADE, related_name='student_reports')
+    reporting_type = models.CharField(max_length=20, choices=REPORTING_TYPES, default='online')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    reported_date = models.DateTimeField(auto_now_add=True)
+    remarks = models.TextField(blank=True)
+    confirmed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='confirmed_reports')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    resolved_at = models.DateTimeField(null=True, blank=True)
-    resolved_by = models.ForeignKey('User', on_delete=models.SET_NULL, null=True, blank=True, related_name='resolved_reports')
-    admin_response = models.TextField(blank=True, null=True)
-    priority = models.CharField(max_length=10, choices=[
-        ('low', 'Low'),
-        ('medium', 'Medium'),
-        ('high', 'High'),
-        ('urgent', 'Urgent')
-    ], default='medium')
     
     class Meta:
-        ordering = ['-created_at']
-        verbose_name = 'Student Report'
-        verbose_name_plural = 'Student Reports'
-    
-    def clean(self):
-        # Ensure report is for current semester in active academic year
-        if self.semester and not self.semester.is_current:
-            raise ValidationError("Reports can only be made for the current semester.")
-        
-        if self.semester and not self.semester.academic_year.is_current:
-            raise ValidationError("Reports can only be made for the current academic year.")
-    
-    def save(self, *args, **kwargs):
-        self.clean()
-        if self.status == 'resolved' and not self.resolved_at:
-            self.resolved_at = timezone.now()
-        super().save(*args, **kwargs)
+        unique_together = ['student', 'semester']
+        ordering = ['-reported_date']
     
     def __str__(self):
-        return f"{self.student.student_id} - {self.subject} ({self.status})"
+        return f"{self.student.student_id} - {self.semester} - {self.get_reporting_type_display()}"
+    
+    @property
+    def semester_display(self):
+        return f"SEMESTER {self.semester.semester_number} {self.semester.academic_year.year}"
 
 # Hostel Management Models
 from django.db import models

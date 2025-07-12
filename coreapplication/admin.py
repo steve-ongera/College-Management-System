@@ -490,18 +490,9 @@ class NewsArticleAdmin(admin.ModelAdmin):
 
 from django.contrib import admin
 from .models import (
-    StudentReport, Hostel, HostelRoom, HostelBooking,
+    Hostel, HostelRoom, HostelBooking,
     HostelFeeStructure, HostelFeePayment
 )
-
-@admin.register(StudentReport)
-class StudentReportAdmin(admin.ModelAdmin):
-    list_display = ('student', 'subject', 'report_type', 'status', 'priority', 'created_at', 'resolved_at')
-    list_filter = ('report_type', 'status', 'priority', 'semester')
-    search_fields = ('student__student_id', 'subject', 'description')
-    date_hierarchy = 'created_at'
-    ordering = ['-created_at']
-    readonly_fields = ('created_at', 'updated_at', 'resolved_at')
 
 
 from django.contrib import admin

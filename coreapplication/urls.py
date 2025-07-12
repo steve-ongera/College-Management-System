@@ -56,10 +56,13 @@ urlpatterns = [
     path('club-events/<int:club_id>/', views.club_events, name='club_events_detail'),
 
     # Student Reporting
-    path('student/reporting/', views.student_reporting_dashboard, name='student_reporting_dashboard'),
-    path('student/reporting/create/', views.create_student_report, name='create_student_report'),
-    path('student/reporting/<int:report_id>/', views.report_detail, name='report_detail'),
 
+    path('reporting/', views.student_reporting_list, name='student_reporting_list'),
+    path('reporting/current/', views.student_report_current_semester, name='student_report_current_semester'),
+    
+    # Admin URLs
+    path('admin/reporting/', views.admin_reporting_overview, name='admin_reporting_overview'),
+  
     # Hostel Booking
     path('hostel/', views.hostel_booking_dashboard, name='hostel_booking_dashboard'),
     path('hostel/list/', views.hostel_list, name='hostel_list'),

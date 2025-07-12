@@ -1203,112 +1203,127 @@ from django.views.decorators.http import require_http_methods
 from django.utils import timezone
 
 from .models import (
-    Student, StudentReport, Hostel, HostelRoom, HostelBooking, 
+    Student,  Hostel, HostelRoom, HostelBooking, 
     HostelFeeStructure, AcademicYear, Semester
 )
-from .forms import StudentReportForm  # You'll need to create these forms
 
 
-# Student Reporting Views
+# views.py
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.http import JsonResponse
+from django.utils import timezone
+from django.db.models import Q
+from .models import Student, Semester, AcademicYear, StudentReporting
+
 @login_required
-def student_reporting_dashboard(request):
-    """View for student to see their reports and create new ones"""
+def student_reporting_list(request):
+    """View to display all reporting records for the current student"""
     if not hasattr(request.user, 'student_profile'):
-        messages.error(request, "Only students can access this page.")
+        messages.error(request, "You must be a student to access this page.")
         return redirect('home')
     
     student = request.user.student_profile
+    reports = StudentReporting.objects.filter(student=student).order_by('-reported_date')
     
-    # Get current semester
-    current_semester = Semester.objects.filter(
-        is_current=True,
-        academic_year__is_current=True
-    ).first()
+    # Get current semester for reporting button
+    current_semester = Semester.objects.filter(is_current=True).first()
+    can_report = False
     
-    if not current_semester:
-        messages.error(request, "No active semester found.")
-        return redirect('home')
-    
-    # Get student's reports for current semester
-    reports = StudentReport.objects.filter(
-        student=student,
-        semester=current_semester
-    ).order_by('-created_at')
-    
-    # Pagination
-    paginator = Paginator(reports, 10)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
+    if current_semester:
+        # Check if student has already reported for current semester
+        existing_report = StudentReporting.objects.filter(
+            student=student, 
+            semester=current_semester
+        ).exists()
+        can_report = not existing_report
     
     context = {
-        'student': student,
+        'reports': reports,
         'current_semester': current_semester,
-        'reports': page_obj,
-        'total_reports': reports.count(),
-        'pending_reports': reports.filter(status='pending').count(),
-        'resolved_reports': reports.filter(status='resolved').count(),
+        'can_report': can_report,
+        'student': student,
     }
     
-    return render(request, 'student_reporting/dashboard.html', context)
-
+    return render(request, 'student/reporting_list.html', context)
 
 @login_required
-def create_student_report(request):
-    """View for creating a new student report"""
+def student_report_current_semester(request):
+    """View to handle student reporting for current semester"""
     if not hasattr(request.user, 'student_profile'):
-        messages.error(request, "Only students can access this page.")
+        messages.error(request, "You must be a student to access this page.")
         return redirect('home')
     
     student = request.user.student_profile
-    
-    # Get current semester
-    current_semester = Semester.objects.filter(
-        is_current=True,
-        academic_year__is_current=True
-    ).first()
+    current_semester = Semester.objects.filter(is_current=True).first()
     
     if not current_semester:
-        messages.error(request, "No active semester found.")
-        return redirect('student_reporting_dashboard')
+        messages.error(request, "No current semester found. Please contact administrator.")
+        return redirect('student_reporting_list')
+    
+    # Check if student has already reported for current semester
+    existing_report = StudentReporting.objects.filter(
+        student=student, 
+        semester=current_semester
+    ).first()
+    
+    if existing_report:
+        messages.warning(request, f"You have already reported for {existing_report.semester_display}")
+        return redirect('student_reporting_list')
     
     if request.method == 'POST':
-        form = StudentReportForm(request.POST)
-        if form.is_valid():
-            report = form.save(commit=False)
-            report.student = student
-            report.semester = current_semester
-            report.save()
-            messages.success(request, "Your report has been submitted successfully.")
-            return redirect('student_reporting_dashboard')
-    else:
-        form = StudentReportForm()
+        # Create new reporting record
+        StudentReporting.objects.create(
+            student=student,
+            semester=current_semester,
+            reporting_type='online',
+            status='confirmed',
+            remarks=request.POST.get('remarks', '')
+        )
+        
+        messages.success(request, f"Successfully reported for {current_semester.academic_year.year} Semester {current_semester.semester_number}")
+        return redirect('student_reporting_list')
     
     context = {
-        'form': form,
-        'student': student,
         'current_semester': current_semester,
+        'student': student,
     }
     
-    return render(request, 'student_reporting/create_report.html', context)
-
+    return render(request, 'student/report_semester.html', context)
 
 @login_required
-def report_detail(request, report_id):
-    """View for viewing a specific report"""
-    if not hasattr(request.user, 'student_profile'):
-        messages.error(request, "Only students can access this page.")
+def admin_reporting_overview(request):
+    """View for admin to see all student reporting records"""
+    if request.user.user_type != 'admin':
+        messages.error(request, "Access denied. Admin privileges required.")
         return redirect('home')
     
-    student = request.user.student_profile
-    report = get_object_or_404(StudentReport, id=report_id, student=student)
+    # Get filter parameters
+    semester_id = request.GET.get('semester')
+    status = request.GET.get('status')
+    
+    reports = StudentReporting.objects.all()
+    
+    if semester_id:
+        reports = reports.filter(semester_id=semester_id)
+    
+    if status:
+        reports = reports.filter(status=status)
+    
+    reports = reports.order_by('-reported_date')
+    
+    # Get all semesters for filter dropdown
+    semesters = Semester.objects.all().order_by('-start_date')
     
     context = {
-        'report': report,
-        'student': student,
+        'reports': reports,
+        'semesters': semesters,
+        'selected_semester': semester_id,
+        'selected_status': status,
     }
     
-    return render(request, 'student_reporting/report_detail.html', context)
-
+    return render(request, 'admin/reporting_overview.html', context)
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required

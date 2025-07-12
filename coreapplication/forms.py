@@ -18,56 +18,9 @@ class StudentCommentForm(forms.ModelForm):
 
 from django import forms
 from django.core.exceptions import ValidationError
-from .models import StudentReport, HostelBooking, HostelRoom, AcademicYear
+from .models import HostelBooking, HostelRoom, AcademicYear
 
-class StudentReportForm(forms.ModelForm):
-    class Meta:
-        model = StudentReport
-        fields = ['report_type', 'subject', 'description', 'priority']
-        widgets = {
-            'report_type': forms.Select(attrs={
-                'class': 'form-control',
-                'required': True
-            }),
-            'subject': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'Enter a brief subject for your report',
-                'maxlength': '200',
-                'required': True
-            }),
-            'description': forms.Textarea(attrs={
-                'class': 'form-control',
-                'placeholder': 'Provide detailed description of your issue...',
-                'rows': 5,
-                'required': True
-            }),
-            'priority': forms.Select(attrs={
-                'class': 'form-control',
-                'required': True
-            })
-        }
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields['report_type'].empty_label = "Select Report Type"
-        self.fields['priority'].empty_label = "Select Priority Level"
-        
-        # Add help text
-        self.fields['subject'].help_text = "Brief summary of your issue (max 200 characters)"
-        self.fields['description'].help_text = "Provide as much detail as possible to help us understand and resolve your issue"
-        self.fields['priority'].help_text = "Select the urgency level of your issue"
-
-    def clean_subject(self):
-        subject = self.cleaned_data.get('subject')
-        if subject and len(subject.strip()) < 5:
-            raise ValidationError("Subject must be at least 5 characters long.")
-        return subject.strip() if subject else subject
-
-    def clean_description(self):
-        description = self.cleaned_data.get('description')
-        if description and len(description.strip()) < 10:
-            raise ValidationError("Description must be at least 10 characters long.")
-        return description.strip() if description else description
 
 # forms.py
 from django import forms
