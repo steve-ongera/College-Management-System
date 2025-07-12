@@ -1859,3 +1859,112 @@ def admin_reject_booking(request, booking_id):
         messages.error(request, "This booking cannot be rejected.")
     
     return redirect('admin_hostel_bookings')
+
+
+# views.py
+from django.shortcuts import render, get_object_or_404
+from django.contrib.auth.decorators import login_required
+from django.http import HttpResponseForbidden
+from collections import defaultdict
+from .models import Student, Enrollment, Grade, AcademicYear, Semester
+
+@login_required
+def student_transcript(request):
+    # Check if user is a student
+    if not hasattr(request.user, 'student_profile'):
+        return HttpResponseForbidden("Access denied. Students only.")
+    
+    student = request.user.student_profile
+    
+    # Get all enrollments for this student with related data
+    enrollments = Enrollment.objects.filter(
+        student=student,
+        is_active=True
+    ).select_related(
+        'subject',
+        'semester',
+        'semester__academic_year'
+    ).prefetch_related(
+        'grade'
+    ).order_by('semester__academic_year__year', 'semester__semester_number', 'subject__code')
+    
+    # Organize data by academic year and semester
+    transcript_data = defaultdict(lambda: defaultdict(list))
+    
+    for enrollment in enrollments:
+        year = enrollment.semester.academic_year.year
+        semester_num = enrollment.semester.semester_number
+        
+        # Get grade information
+        grade_info = None
+        if hasattr(enrollment, 'grade'):
+            grade_info = enrollment.grade
+        
+        # Calculate total marks if both theory and practical exist
+        total_marks = 0
+        if grade_info:
+            theory = grade_info.theory_marks or 0
+            practical = grade_info.practical_marks or 0
+            total_marks = theory + practical
+        
+        subject_data = {
+            'subject': enrollment.subject,
+            'enrollment': enrollment,
+            'grade': grade_info,
+            'theory_marks': grade_info.theory_marks if grade_info else None,
+            'practical_marks': grade_info.practical_marks if grade_info else None,
+            'total_marks': total_marks if grade_info else None,
+            'grade_letter': grade_info.grade if grade_info else 'N/A',
+            'grade_points': grade_info.grade_points if grade_info else None,
+            'is_passed': grade_info.is_passed if grade_info else False,
+            'status': 'Passed' if (grade_info and grade_info.is_passed) else 'Failed' if grade_info else 'Pending'
+        }
+        
+        transcript_data[year][semester_num].append(subject_data)
+    
+    # Convert to regular dict and sort
+    transcript_data = dict(transcript_data)
+    for year in transcript_data:
+        transcript_data[year] = dict(transcript_data[year])
+        for semester in transcript_data[year]:
+            transcript_data[year][semester].sort(key=lambda x: x['subject'].code)
+    
+    # Calculate GPA for each semester and overall
+    semester_gpas = {}
+    overall_credits = 0
+    overall_grade_points = 0
+    
+    for year in transcript_data:
+        for semester_num in transcript_data[year]:
+            semester_credits = 0
+            semester_grade_points = 0
+            
+            for subject_data in transcript_data[year][semester_num]:
+                if subject_data['grade_points'] is not None:
+                    credits = subject_data['subject'].credits
+                    grade_points = subject_data['grade_points']
+                    
+                    semester_credits += credits
+                    semester_grade_points += (grade_points * credits)
+                    
+                    overall_credits += credits
+                    overall_grade_points += (grade_points * credits)
+            
+            if semester_credits > 0:
+                semester_gpa = semester_grade_points / semester_credits
+                semester_gpas[f"{year}-{semester_num}"] = {
+                    'gpa': round(semester_gpa, 2),
+                    'credits': semester_credits
+                }
+    
+    overall_gpa = round(overall_grade_points / overall_credits, 2) if overall_credits > 0 else 0
+    
+    context = {
+        'student': student,
+        'transcript_data': transcript_data,
+        'semester_gpas': semester_gpas,
+        'overall_gpa': overall_gpa,
+        'total_credits': overall_credits,
+    }
+    
+    return render(request, 'student/student_transcript.html', context)

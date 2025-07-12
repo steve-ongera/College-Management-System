@@ -59,6 +59,8 @@ urlpatterns = [
 
     path('reporting/', views.student_reporting_list, name='student_reporting_list'),
     path('reporting/current/', views.student_report_current_semester, name='student_report_current_semester'),
+    path('student/transcript/', views.student_transcript, name='student_transcript'),
+
     
     # Admin URLs
     path('admin/reporting/', views.admin_reporting_overview, name='admin_reporting_overview'),

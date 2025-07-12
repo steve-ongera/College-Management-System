@@ -1,0 +1,217 @@
+{% extends 'base.html' %}
+{% load transcript_filters %}
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-12">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0">Academic Transcript</h3>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h5>Student Information</h5>
+                            <p><strong>Name:</strong> {{ student.user.get_full_name }}</p>
+                            <p><strong>Student ID:</strong> {{ student.student_id }}</p>
+                            <p><strong>Course:</strong> {{ student.course.name }}</p>
+                            <p><strong>Department:</strong> {{ student.course.department.name }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h5>Academic Summary</h5>
+                            <p><strong>Current Year:</strong> {{ student.current_year }}</p>
+                            <p><strong>Current Semester:</strong> {{ student.current_semester }}</p>
+                            <p><strong>Overall GPA:</strong> {{ overall_gpa }}</p>
+                            <p><strong>Total Credits:</strong> {{ total_credits }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-body">
+                    {% if transcript_data %}
+                    <!-- Year Tabs -->
+                    <ul class="nav nav-tabs" id="yearTabs" role="tablist">
+                        {% for year in transcript_data.keys %}
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link {% if forloop.first %}active{% endif %}" 
+                                    id="year-{{ year|slugify }}-tab" 
+                                    data-bs-toggle="tab" 
+                                    data-bs-target="#year-{{ year|slugify }}" 
+                                    type="button" 
+                                    role="tab">
+                                {{ year }}
+                            </button>
+                        </li>
+                        {% endfor %}
+                    </ul>
+
+                    <!-- Year Tab Content -->
+                    <div class="tab-content mt-3" id="yearTabsContent">
+                        {% for year, semesters in transcript_data.items %}
+                        <div class="tab-pane fade {% if forloop.first %}show active{% endif %}" 
+                             id="year-{{ year|slugify }}" 
+                             role="tabpanel">
+                            
+                            <!-- Semester Tabs for this year -->
+                            <ul class="nav nav-pills mb-3" id="semester-{{ year|slugify }}-tabs" role="tablist">
+                                {% for semester_num in semesters.keys %}
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link {% if forloop.first %}active{% endif %}" 
+                                            id="semester-{{ year|slugify }}-{{ semester_num }}-tab" 
+                                            data-bs-toggle="pill" 
+                                            data-bs-target="#semester-{{ year|slugify }}-{{ semester_num }}" 
+                                            type="button" 
+                                            role="tab">
+                                        Semester {{ semester_num }}
+                                        {% if semester_gpas|dict_key:year|add:"-"|add:semester_num %}
+                                            <small class="badge bg-info ms-1">GPA: {{ semester_gpas|dict_key:year|add:"-"|add:semester_num|dict_key:"gpa" }}</small>
+                                        {% endif %}
+                                    </button>
+                                </li>
+                                {% endfor %}
+                            </ul>
+
+                            <!-- Semester Tab Content -->
+                            <div class="tab-content" id="semester-{{ year|slugify }}-content">
+                                {% for semester_num, subjects in semesters.items %}
+                                <div class="tab-pane fade {% if forloop.first %}show active{% endif %}" 
+                                     id="semester-{{ year|slugify }}-{{ semester_num }}" 
+                                     role="tabpanel">
+                                    
+                                    <div class="row mb-3">
+                                        <div class="col-md-8">
+                                            <h5>{{ year }} - Semester {{ semester_num }}</h5>
+                                        </div>
+                                        <div class="col-md-4 text-end">
+                                            {% with semester_key=year|add:"-"|add:semester_num %}
+                                            {% if semester_gpas|dict_key:semester_key %}
+                                            <p class="mb-0"><strong>Semester GPA:</strong> {{ semester_gpas|dict_key:semester_key|dict_key:"gpa" }}</p>
+                                            <p class="mb-0"><strong>Credits:</strong> {{ semester_gpas|dict_key:semester_key|dict_key:"credits" }}</p>
+                                            {% endif %}
+                                            {% endwith %}
+                                        </div>
+                                    </div>
+
+                                    <div class="table-responsive">
+                                        <table class="table table-striped">
+                                            <thead class="table-dark">
+                                                <tr>
+                                                    <th>Subject Code</th>
+                                                    <th>Subject Name</th>
+                                                    <th>Credits</th>
+                                                    <th>Theory Marks</th>
+                                                    <th>Practical Marks</th>
+                                                    <th>Total Marks</th>
+                                                    <th>Grade</th>
+                                                    <th>Grade Points</th>
+                                                    <th>Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for subject_data in subjects %}
+                                                <tr {% if subject_data.status == 'Failed' %}class="table-danger"{% elif subject_data.status == 'Passed' %}class="table-success"{% endif %}>
+                                                    <td>{{ subject_data.subject.code }}</td>
+                                                    <td>{{ subject_data.subject.name }}</td>
+                                                    <td>{{ subject_data.subject.credits }}</td>
+                                                    <td>
+                                                        {% if subject_data.theory_marks %}
+                                                            {{ subject_data.theory_marks }}
+                                                        {% else %}
+                                                            -
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        {% if subject_data.practical_marks %}
+                                                            {{ subject_data.practical_marks }}
+                                                        {% else %}
+                                                            -
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        {% if subject_data.total_marks %}
+                                                            {{ subject_data.total_marks }}
+                                                        {% else %}
+                                                            -
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        <span class="badge {% if subject_data.grade_letter == 'F' %}bg-danger{% elif subject_data.grade_letter == 'D' %}bg-warning{% elif subject_data.grade_letter|slice:':1' == 'A' %}bg-success{% else %}bg-primary{% endif %}">
+                                                            {{ subject_data.grade_letter }}
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        {% if subject_data.grade_points %}
+                                                            {{ subject_data.grade_points }}
+                                                        {% else %}
+                                                            -
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        <span class="badge {% if subject_data.status == 'Passed' %}bg-success{% elif subject_data.status == 'Failed' %}bg-danger{% else %}bg-secondary{% endif %}">
+                                                            {{ subject_data.status }}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info" role="alert">
+                        <h4 class="alert-heading">No Academic Records Found</h4>
+                        <p>No transcript data is available for your account. Please contact the academic office if you believe this is an error.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Custom CSS for better styling -->
+<style>
+    .nav-tabs .nav-link.active {
+        background-color: #007bff !important;
+        border-color: #007bff !important;
+        color: white !important;
+    }
+    
+    .nav-pills .nav-link.active {
+        background-color: #6c757d !important;
+    }
+    
+    .table-responsive {
+        max-height: 500px;
+        overflow-y: auto;
+    }
+    
+    .badge {
+        font-size: 0.8em;
+    }
+    
+    .card-header {
+        border-bottom: 2px solid #dee2e6;
+    }
+    
+    .tab-content {
+        min-height: 400px;
+    }
+    
+    .table th {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+</style>
+
+<!-- Bootstrap JS for tabs functionality -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+{% endblock %}
