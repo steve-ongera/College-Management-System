@@ -64,7 +64,7 @@ urlpatterns = [
     path('admin-student-info/', views.get_student_info, name='get_student_info'),
 
     
-    # Admin URLs
+    # Admin URLs for reporting
     path('admin/reporting/', views.admin_reporting_overview, name='admin_reporting_overview'),
   
     # Hostel Booking
