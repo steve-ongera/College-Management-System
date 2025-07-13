@@ -26,6 +26,7 @@ urlpatterns = [
     
     # Finance
     path('fees/', views.student_fees, name='student_fees'),
+    path('fees/history/', views.fee_payment_history, name='fee_payment_history'),
     
     # Library
     path('library/', views.student_library, name='student_library'),

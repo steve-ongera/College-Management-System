@@ -824,34 +824,134 @@ def student_exam_results(request):
     return render(request, 'student/exam_results.html', context)
 
 # Fee Management Views
+from django.shortcuts import render, get_object_or_404
+from django.contrib.auth.decorators import login_required
+from django.db.models import Sum, Q
+from decimal import Decimal
+from .models import Student, FeeStructure, FeePayment, AcademicYear, Semester
+
 @login_required
 def student_fees(request):
     student = get_object_or_404(Student, user=request.user)
     
-    # Get fee structure for student's course
+    # Get current academic year and semester
+    current_academic_year = AcademicYear.objects.filter(is_current=True).first()
+    current_semester = Semester.objects.filter(is_current=True).first()
+    
+    # Get all fee structures for student's course ordered by academic year and semester
     fee_structures = FeeStructure.objects.filter(
         course=student.course
-    ).order_by('-academic_year__start_date', 'semester')
+    ).order_by('academic_year__start_date', 'semester')
     
-    # Get payment history
+    # Get all payments for this student
     payments = FeePayment.objects.filter(
-        student=student
+        student=student,
+        payment_status='completed'
     ).order_by('-payment_date')
     
-    # Calculate pending fees
-    total_fees = sum(fs.total_fee() for fs in fee_structures)
-    total_paid = sum(p.amount_paid for p in payments if p.payment_status == 'completed')
-    pending_fees = total_fees - total_paid
+    # Calculate semester-wise fee details
+    semester_fee_details = []
+    running_balance = Decimal('0.00')
+    
+    for fee_structure in fee_structures:
+        # Get payments for this specific semester
+        semester_payments = payments.filter(
+            fee_structure=fee_structure
+        )
+        
+        total_fee = fee_structure.total_fee()
+        total_paid = semester_payments.aggregate(
+            total=Sum('amount_paid')
+        )['total'] or Decimal('0.00')
+        
+        # Calculate balance for this semester (including carry forward)
+        semester_balance = total_fee - total_paid + running_balance
+        
+        # Update running balance for next semester
+        if semester_balance < 0:
+            running_balance = semester_balance
+        else:
+            running_balance = Decimal('0.00')
+        
+        semester_fee_details.append({
+            'fee_structure': fee_structure,
+            'total_fee': total_fee,
+            'total_paid': total_paid,
+            'semester_balance': semester_balance,
+            'carry_forward': running_balance if semester_balance < 0 else Decimal('0.00'),
+            'payments': semester_payments,
+            'is_current': (current_academic_year and current_semester and 
+                          fee_structure.academic_year == current_academic_year and 
+                          fee_structure.semester == current_semester.semester_number)
+        })
+    
+    # Calculate overall totals
+    total_fees = sum(detail['total_fee'] for detail in semester_fee_details)
+    total_paid = sum(detail['total_paid'] for detail in semester_fee_details)
+    overall_balance = total_fees - total_paid
+    
+    # Get current semester details if exists
+    current_semester_details = None
+    if current_academic_year and current_semester:
+        current_fee_structure = FeeStructure.objects.filter(
+            course=student.course,
+            academic_year=current_academic_year,
+            semester=current_semester.semester_number
+        ).first()
+        
+        if current_fee_structure:
+            current_semester_details = next(
+                (detail for detail in semester_fee_details 
+                 if detail['fee_structure'] == current_fee_structure), 
+                None
+            )
+    
+    # Get recent payment history (last 10 payments)
+    recent_payments = FeePayment.objects.filter(
+        student=student
+    ).order_by('-payment_date')[:10]
     
     context = {
         'student': student,
-        'fee_structures': fee_structures,
-        'payments': payments,
+        'semester_fee_details': semester_fee_details,
+        'recent_payments': recent_payments,
         'total_fees': total_fees,
         'total_paid': total_paid,
-        'pending_fees': pending_fees,
+        'overall_balance': overall_balance,
+        'current_semester_details': current_semester_details,
+        'current_academic_year': current_academic_year,
+        'current_semester': current_semester,
     }
     return render(request, 'student/fees.html', context)
+
+@login_required
+def fee_payment_history(request):
+    student = get_object_or_404(Student, user=request.user)
+    
+    # Get all payments with related fee structure details
+    payments = FeePayment.objects.filter(
+        student=student
+    ).select_related('fee_structure__course', 'fee_structure__academic_year').order_by('-payment_date')
+    
+    # Group payments by academic year and semester
+    payment_groups = {}
+    for payment in payments:
+        key = f"{payment.fee_structure.academic_year.year}-{payment.fee_structure.semester}"
+        if key not in payment_groups:
+            payment_groups[key] = {
+                'academic_year': payment.fee_structure.academic_year,
+                'semester': payment.fee_structure.semester,
+                'payments': []
+            }
+        payment_groups[key]['payments'].append(payment)
+    
+    context = {
+        'student': student,
+        'payment_groups': payment_groups,
+        'payments': payments,
+    }
+    return render(request, 'student/payment_history.html', context)
+
 
 # Library Views
 @login_required
