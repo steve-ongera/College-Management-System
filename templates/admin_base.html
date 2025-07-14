@@ -122,7 +122,7 @@
     <nav class="sidenav">
         <ul class="menu">
             <li class="menu-link active" id="dashboard">
-                <a class="menu_sub" href="#"> <i class="ri-dashboard-line"></i> <span>Dashboard</span></a>
+                <a class="menu_sub" href="{% url 'admin_dashboard'%}"> <i class="ri-dashboard-line"></i> <span>Dashboard</span></a>
             </li>
             
             <!-- User Management -->
@@ -134,7 +134,7 @@
                 </a>
                 <ul>
                     <li class="sub-item">
-                        <a id="students" href="#">Students</a>
+                        <a id="students" href="{% url 'student_list'%}">Students</a>
                     </li>
                     <li class="sub-item">
                         <a id="faculty" href="#">Faculty</a>

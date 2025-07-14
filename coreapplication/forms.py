@@ -308,4 +308,93 @@ class AdminBookingFilterForm(forms.Form):
         widget=forms.Select(attrs={'class': 'form-control'})
     )
     
-   
+
+# forms.py
+from django import forms
+from django.contrib.auth import get_user_model
+from .models import Student, Course
+
+User = get_user_model()
+
+class UserForm(forms.ModelForm):
+    password = forms.CharField(
+        widget=forms.PasswordInput(attrs={'class': 'form-control'}),
+        required=True
+    )
+    confirm_password = forms.CharField(
+        widget=forms.PasswordInput(attrs={'class': 'form-control'}),
+        required=True
+    )
+
+    class Meta:
+        model = User
+        fields = [
+            'username', 'email', 'first_name', 'last_name', 'password',
+            'phone', 'address', 'gender', 'date_of_birth', 'profile_picture'
+        ]
+        widgets = {
+            'username': forms.TextInput(attrs={'class': 'form-control'}),
+            'email': forms.EmailInput(attrs={'class': 'form-control'}),
+            'first_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'last_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'phone': forms.TextInput(attrs={'class': 'form-control'}),
+            'gender': forms.Select(attrs={'class': 'form-control'}),
+            'date_of_birth': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'address': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+            'profile_picture': forms.ClearableFileInput(attrs={'class': 'form-control'}),
+        }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        password = cleaned_data.get('password')
+        confirm_password = cleaned_data.get('confirm_password')
+
+        if password and confirm_password and password != confirm_password:
+            raise forms.ValidationError("Passwords don't match")
+
+        return cleaned_data
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        user.set_password(self.cleaned_data['password'])
+        if commit:
+            user.save()
+        return user
+
+
+class StudentForm(forms.ModelForm):
+    class Meta:
+        model = Student
+        fields = [
+            'student_id', 'course', 'current_semester', 'current_year',
+            'admission_date', 'admission_type', 'status', 'guardian_name',
+            'guardian_phone', 'guardian_relation', 'emergency_contact', 'blood_group'
+        ]
+        widgets = {
+            'admission_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'course': forms.Select(attrs={'class': 'form-control'}),
+            'current_semester': forms.NumberInput(attrs={'class': 'form-control'}),
+            'current_year': forms.NumberInput(attrs={'class': 'form-control'}),
+            'admission_type': forms.Select(attrs={'class': 'form-control'}),
+            'status': forms.Select(attrs={'class': 'form-control'}),
+            'guardian_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'guardian_phone': forms.TextInput(attrs={'class': 'form-control'}),
+            'guardian_relation': forms.TextInput(attrs={'class': 'form-control'}),
+            'emergency_contact': forms.TextInput(attrs={'class': 'form-control'}),
+            'blood_group': forms.TextInput(attrs={'class': 'form-control'}),
+            'student_id': forms.TextInput(attrs={'class': 'form-control'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['course'].queryset = Course.objects.filter(is_active=True)
+
+    def clean_student_id(self):
+        student_id = self.cleaned_data.get('student_id')
+        if self.instance.pk:
+            if Student.objects.filter(student_id=student_id).exclude(pk=self.instance.pk).exists():
+                raise forms.ValidationError("Student ID already exists")
+        else:
+            if Student.objects.filter(student_id=student_id).exists():
+                raise forms.ValidationError("Student ID already exists")
+        return student_id

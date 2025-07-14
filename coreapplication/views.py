@@ -2555,3 +2555,162 @@ def admin_logout_view(request):
     messages.success(request, 'You have been successfully logged out.')
     logger.info(f"Admin logout for user: {username}")
     return redirect('admin_login')
+
+
+# views.py
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth import get_user_model
+from django.db import transaction
+from django.core.paginator import Paginator
+from django.urls import reverse
+from .models import Student, Course, Department
+from .forms import StudentForm, UserForm  # You'll need to create these forms
+
+User = get_user_model()
+
+@login_required
+def student_list(request):
+    """List all students with pagination and search"""
+    students = Student.objects.select_related('user', 'course', 'course__department').all()
+    
+    # Search functionality
+    search_query = request.GET.get('search', '')
+    if search_query:
+        students = students.filter(
+            models.Q(user__first_name__icontains=search_query) |
+            models.Q(user__last_name__icontains=search_query) |
+            models.Q(student_id__icontains=search_query) |
+            models.Q(course__name__icontains=search_query)
+        )
+    
+    # Filter by status
+    status_filter = request.GET.get('status', '')
+    if status_filter:
+        students = students.filter(status=status_filter)
+    
+    # Filter by course
+    course_filter = request.GET.get('course', '')
+    if course_filter:
+        students = students.filter(course_id=course_filter)
+    
+    # Pagination
+    paginator = Paginator(students, 20)  # 20 students per page
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    # Get all courses for filter dropdown
+    courses = Course.objects.filter(is_active=True)
+    
+    context = {
+        'students': page_obj,
+        'search_query': search_query,
+        'status_filter': status_filter,
+        'course_filter': course_filter,
+        'courses': courses,
+        'status_choices': Student.STATUS_CHOICES,
+    }
+    
+    return render(request, 'admin/students/student_list.html', context)
+
+@login_required
+def student_detail(request, student_id):
+    """View student details"""
+    student = get_object_or_404(Student, student_id=student_id)
+    
+    context = {
+        'student': student,
+    }
+    
+    return render(request, 'admin/students/student_detail.html', context)
+
+@login_required
+@transaction.atomic
+def student_create(request):
+    """Create a new student"""
+    if request.method == 'POST':
+        user_form = UserForm(request.POST, request.FILES)
+        student_form = StudentForm(request.POST)
+        
+        if user_form.is_valid() and student_form.is_valid():
+            try:
+                # Create user first
+                user = user_form.save(commit=False)
+                user.user_type = 'student'
+                user.save()
+                
+                # Create student profile
+                student = student_form.save(commit=False)
+                student.user = user
+                student.save()
+                
+                messages.success(request, f'Student {student.student_id} created successfully!')
+                return redirect('student_detail', student_id=student.student_id)
+                
+            except Exception as e:
+                messages.error(request, f'Error creating student: {str(e)}')
+    else:
+        user_form = UserForm()
+        student_form = StudentForm()
+    
+    context = {
+        'user_form': user_form,
+        'student_form': student_form,
+        'action': 'Create',
+    }
+    
+    return render(request, 'admin/students/student_form.html', context)
+
+@login_required
+@transaction.atomic
+def student_update(request, student_id):
+    """Update student information"""
+    student = get_object_or_404(Student, student_id=student_id)
+    
+    if request.method == 'POST':
+        user_form = UserForm(request.POST, request.FILES, instance=student.user)
+        student_form = StudentForm(request.POST, instance=student)
+        
+        if user_form.is_valid() and student_form.is_valid():
+            try:
+                user_form.save()
+                student_form.save()
+                
+                messages.success(request, f'Student {student.student_id} updated successfully!')
+                return redirect('student_detail', student_id=student.student_id)
+                
+            except Exception as e:
+                messages.error(request, f'Error updating student: {str(e)}')
+    else:
+        user_form = UserForm(instance=student.user)
+        student_form = StudentForm(instance=student)
+    
+    context = {
+        'user_form': user_form,
+        'student_form': student_form,
+        'student': student,
+        'action': 'Update',
+    }
+    
+    return render(request, 'admin/students/student_form.html', context)
+
+@login_required
+def student_delete(request, student_id):
+    """Delete a student"""
+    student = get_object_or_404(Student, student_id=student_id)
+    
+    if request.method == 'POST':
+        try:
+            student_name = student.user.get_full_name()
+            student.user.delete()  # This will cascade delete the student
+            messages.success(request, f'Student {student_name} deleted successfully!')
+            return redirect('student_list')
+        except Exception as e:
+            messages.error(request, f'Error deleting student: {str(e)}')
+    
+    context = {
+        'student': student,
+    }
+    
+    return render(request, 'admin/students/student_confirm_delete.html', context)
