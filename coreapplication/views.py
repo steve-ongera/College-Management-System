@@ -48,6 +48,7 @@ def student_dashboard(request):
     
     # Get current academic year
     current_academic_year = AcademicYear.objects.filter(is_current=True).first()
+    current_semester = Semester.objects.filter(is_current=True).first()
     
     # Get enrolled subjects for student's current semester and year
     # Filter subjects based on student's current year and semester
@@ -77,6 +78,44 @@ def student_dashboard(request):
         status='approved',
         academic_year=current_academic_year
     ).select_related('bed__room__hostel').first()
+    
+    # Calculate current semester fee balance
+    current_semester_fee_balance = 0
+    current_semester_fee_status = 'no_structure'
+    
+    if current_academic_year and current_semester:
+        try:
+            # Get fee structure for current semester
+            current_fee_structure = FeeStructure.objects.get(
+                course=student.course,
+                academic_year=current_academic_year,
+                semester=current_semester.semester_number
+            )
+            
+            # Get total fee for current semester
+            total_current_fee = current_fee_structure.total_fee()
+            
+            # Get payments made for current semester
+            current_semester_payments = FeePayment.objects.filter(
+                student=student,
+                fee_structure=current_fee_structure,
+                payment_status='completed'
+            ).aggregate(total=Sum('amount_paid'))['total'] or Decimal('0.00')
+            
+            # Calculate balance for current semester
+            current_semester_fee_balance = total_current_fee - current_semester_payments
+            
+            # Determine status
+            if current_semester_fee_balance > 0:
+                current_semester_fee_status = 'pending'
+            elif current_semester_fee_balance < 0:
+                current_semester_fee_status = 'overpaid'
+            else:
+                current_semester_fee_status = 'paid'
+                
+        except FeeStructure.DoesNotExist:
+            current_semester_fee_balance = 0
+            current_semester_fee_status = 'no_structure'
     
     # Get recent grades
     recent_grades = Grade.objects.filter(
@@ -174,6 +213,7 @@ def student_dashboard(request):
     context = {
         'student': student,
         'current_academic_year': current_academic_year,
+        'current_semester': current_semester,
         'current_subjects': current_subjects,
         'current_enrollments': current_enrollments,
         'available_subjects': available_subjects,
@@ -189,7 +229,9 @@ def student_dashboard(request):
         'current_semester_progress': current_semester_progress,
         'current_semester_subjects': current_semester_subjects,
         'current_semester_completed': current_semester_completed,
-        'hostel_booking': current_hostel_booking,  # Add hostel booking 
+        'hostel_booking': current_hostel_booking,
+        'current_semester_fee_balance': current_semester_fee_balance,
+        'current_semester_fee_status': current_semester_fee_status,
     }
     
     return render(request, 'student/dashboard.html', context)
@@ -2291,3 +2333,225 @@ def get_student_info(request):
         
     except Student.DoesNotExist:
         return JsonResponse({'error': 'Student not found'}, status=404)
+    
+#admin module 
+from django.shortcuts import render
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.db.models import Count, Sum
+from .models import (
+    User, Student, Faculty, Staff, Department, Course, 
+    Subject, Enrollment, FeePayment, Attendance, 
+    Notification, Event, Hostel, HostelBooking,
+    NewsArticle, StudentClub, ClubEvent
+)
+from datetime import datetime, timedelta
+
+
+# views.py
+from datetime import timedelta
+from django.contrib.auth import get_user_model
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.db.models import Count
+from django.utils import timezone
+from django.shortcuts import render
+
+# Import your models (adjust the import path based on your app structure)
+from .models import (
+    Student, Faculty, Staff, Department, Course, Subject,
+    FeePayment, Hostel, HostelBooking, Notification, Event,
+    NewsArticle, StudentClub, ClubEvent, Attendance
+)
+
+# Grab the swapped-in user model
+User = get_user_model()
+
+# Define the is_admin function or import it
+def is_admin(user):
+    """Check if user is an admin/superuser"""
+    return user.is_superuser or user.is_staff
+
+@login_required
+@user_passes_test(is_admin)
+def admin_dashboard(request):
+    User = get_user_model()  # Call it inside the function
+    today = timezone.localdate()            # e.g. 2025-07-14
+    now = timezone.now()
+
+    # ─────────── User statistics ───────────
+    total_users      = User.objects.count()
+    active_users     = User.objects.filter(is_active=True).count()
+    new_users_today  = User.objects.filter(date_joined__date=today).count()
+
+    # ─────────── Student statistics ───────────
+    total_students       = Student.objects.count()
+    active_students      = Student.objects.filter(status='active').count()
+    new_students_today   = Student.objects.filter(user__date_joined__date=today).count()
+
+    # ─────────── Faculty statistics ───────────
+    total_faculty   = Faculty.objects.count()
+    active_faculty  = Faculty.objects.filter(is_active=True).count()
+
+    # ─────────── Staff statistics ───────────
+    total_staff   = Staff.objects.count()
+    active_staff  = Staff.objects.filter(is_active=True).count()
+
+    # ─────────── Academic statistics ───────────
+    total_departments = Department.objects.count()
+    total_courses     = Course.objects.count()
+    total_subjects    = Subject.objects.count()
+
+    # ─────────── Financial statistics ───────────
+    total_fee_payments  = FeePayment.objects.count()
+    today_fee_payments = FeePayment.objects.filter(payment_date=today).count()
+    recent_payments     = FeePayment.objects.order_by('-payment_date')[:5]
+
+    # ─────────── Hostel statistics ───────────
+    total_hostels            = Hostel.objects.count()
+    total_hostel_bookings    = HostelBooking.objects.count()
+    pending_hostel_bookings  = HostelBooking.objects.filter(status='pending').count()
+
+    # ─────────── Recent activities ───────────
+    recent_notifications = Notification.objects.order_by('-created_at')[:5]
+    recent_events        = Event.objects.order_by('-start_date')[:5]
+    recent_news          = NewsArticle.objects.order_by('-publish_date')[:3]
+
+    # ─────────── Club statistics ───────────
+    total_clubs        = StudentClub.objects.count()
+    active_club_events = ClubEvent.objects.filter(status='ongoing').count()
+
+    # ─────────── Attendance summary (last 7 days) ───────────
+    attendance_summary = (
+        Attendance.objects
+        .filter(date__gte=now - timedelta(days=7))
+        .values('status')
+        .annotate(count=Count('status'))
+    )
+
+    context = {
+        # User stats
+        'total_users': total_users,
+        'active_users': active_users,
+        'new_users_today': new_users_today,
+
+        # Student stats
+        'total_students': total_students,
+        'active_students': active_students,
+        'new_students_today': new_students_today,
+
+        # Faculty stats
+        'total_faculty': total_faculty,
+        'active_faculty': active_faculty,
+
+        # Staff stats
+        'total_staff': total_staff,
+        'active_staff': active_staff,
+
+        # Academic stats
+        'total_departments': total_departments,
+        'total_courses': total_courses,
+        'total_subjects': total_subjects,
+
+        # Financial stats
+        'total_fee_payments': total_fee_payments,
+        'today_fee_payments': today_fee_payments,
+        'recent_payments': recent_payments,
+
+        # Hostel stats
+        'total_hostels': total_hostels,
+        'total_hostel_bookings': total_hostel_bookings,
+        'pending_hostel_bookings': pending_hostel_bookings,
+
+        # Activities
+        'recent_notifications': recent_notifications,
+        'recent_events': recent_events,
+        'recent_news': recent_news,
+
+        # Clubs
+        'total_clubs': total_clubs,
+        'active_club_events': active_club_events,
+
+        # Attendance
+        'attendance_summary': attendance_summary,
+
+        # Current date (formatted)
+        'current_date': now.strftime("%B %d, %Y"),
+    }
+
+    return render(request, "admin/admin_dashboard.html", context)
+
+from django.shortcuts import render, redirect
+from django.contrib.auth import authenticate, login
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.csrf import csrf_protect
+from django.contrib.auth.models import User
+from django.http import JsonResponse
+from django.views.decorators.http import require_http_methods
+import logging
+
+logger = logging.getLogger(__name__)
+
+@csrf_protect
+@require_http_methods(["GET", "POST"])
+def admin_login_view(request):
+    """
+    Admin login view with enhanced security and validation
+    """
+    # Redirect if already authenticated and is staff/admin
+    if request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser):
+        return redirect('admin_dashboard')  # Replace with your admin dashboard URL
+    
+    if request.method == 'POST':
+        username = request.POST.get('username', '').strip()
+        password = request.POST.get('password', '').strip()
+        remember_me = request.POST.get('RememberMe') == 'on'
+        
+        # Basic validation
+        if not username or not password:
+            messages.error(request, 'Please provide both username and password.')
+            return render(request, 'admin/admin_login.html')
+        
+        # Authenticate user
+        user = authenticate(request, username=username, password=password)
+        
+        if user is not None:
+            # Check if user is admin/staff
+            if user.is_staff or user.is_superuser:
+                if user.is_active:
+                    login(request, user)
+                    
+                    # Handle remember me functionality
+                    if remember_me:
+                        request.session.set_expiry(1209600)  # 2 weeks
+                    else:
+                        request.session.set_expiry(0)  # Browser close
+                    
+                    # Log successful login
+                    logger.info(f"Admin login successful for user: {username}")
+                    
+                    messages.success(request, f'Welcome back, {user.first_name or user.username}!')
+                    
+                    # Redirect to next page or dashboard
+                    next_url = request.GET.get('next', 'admin_dashboard')
+                    return redirect(next_url)
+                else:
+                    messages.error(request, 'Your account has been deactivated. Please contact support.')
+            else:
+                messages.error(request, 'Access denied. Admin privileges required.')
+                logger.warning(f"Non-admin user attempted admin login: {username}")
+        else:
+            messages.error(request, 'Invalid username or password.')
+            logger.warning(f"Failed admin login attempt for username: {username}")
+    
+    return render(request, 'admin/admin_login.html')
+
+@login_required
+def admin_logout_view(request):
+    """
+    Admin logout view
+    """
+    username = request.user.username
+    logout(request)
+    messages.success(request, 'You have been successfully logged out.')
+    logger.info(f"Admin logout for user: {username}")
+    return redirect('admin_login')

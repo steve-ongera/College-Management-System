@@ -84,4 +84,9 @@ urlpatterns = [
     path('admin/hostel/booking/<int:booking_id>/approve/', views.admin_approve_booking, name='admin_approve_booking'),
     path('admin/hostel/booking/<int:booking_id>/reject/', views.admin_reject_booking, name='admin_reject_booking'),
 
+    # Admin authentication URLs
+    path('admin-login/', views.admin_login_view, name='admin_login'),
+    path('admin-logout/', views.admin_logout_view, name='admin_logout'),
+    path('admin-dashboard/', views.admin_dashboard, name='admin_dashboard'),
+
  ]

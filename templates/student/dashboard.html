@@ -104,7 +104,14 @@
                             <div class="card-body mt-3">
                                 <h5 class="card-title fw-bold">Fee Balance</h5>
                                 <input hidden type="checkbox" checked="checked" id="feebalanceStatus" />
-                                <p class="card-text" id="studBalance"> -21,000 KSH
+                                <p class="card-text" id="studBalance">
+                                    {% if current_semester_fee_balance > 0 %}
+                                           {{ current_semester_fee_balance|floatformat:2 }} KSH
+                                            {% elif current_semester_fee_balance < 0 %}
+                                                {{ current_semester_fee_balance|floatformat:2 }} KSH
+                                            {% else %}
+                                                0.00 KSH
+                                    {% endif %}
                                 </p>
                             </div>
                         </div>

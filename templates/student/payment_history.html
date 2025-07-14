@@ -25,7 +25,7 @@
                                 {{ group.academic_year.year }} - Semester {{ group.semester }}
                                 <span class="float-right">
                                     <span class="badge badge-secondary">{{ group.payments|length }} payment(s)</span>
-                                    Total: ₹{% for payment in group.payments %}{{ payment.amount_paid|add:0 }}{% if not forloop.last %} + {% endif %}{% endfor %}
+                                    Total: ksh{% for payment in group.payments %}{{ payment.amount_paid|add:0 }}{% if not forloop.last %} + {% endif %}{% endfor %}
                                 </span>
                             </button>
                         </h6>
@@ -50,7 +50,7 @@
                                         <tr>
                                             <td>{{ payment.receipt_number }}</td>
                                             <td>{{ payment.payment_date|date:"M d, Y" }}</td>
-                                            <td>₹{{ payment.amount_paid|floatformat:2 }}</td>
+                                            <td>ksh{{ payment.amount_paid|floatformat:2 }}</td>
                                             <td>{{ payment.get_payment_method_display }}</td>
                                             <td>
                                                 <span class="badge badge-{% if payment.payment_status == 'completed' %}success{% elif payment.payment_status == 'pending' %}warning{% elif payment.payment_status == 'failed' %}danger{% else %}info{% endif %}">
@@ -65,7 +65,7 @@
                                     <tfoot>
                                         <tr class="table-active">
                                             <td colspan="2"><strong>Semester Total:</strong></td>
-                                            <td><strong>₹{% for payment in group.payments %}{{ payment.amount_paid|add:0 }}{% if not forloop.last %} + {% endif %}{% endfor %}</strong></td>
+                                            <td><strong>ksh{% for payment in group.payments %}{{ payment.amount_paid|add:0 }}{% if not forloop.last %} + {% endif %}{% endfor %}</strong></td>
                                             <td colspan="4"></td>
                                         </tr>
                                     </tfoot>
@@ -102,7 +102,7 @@
                 <div class="col-md-3">
                     <div class="text-center">
                         <h6>Total Amount Paid</h6>
-                        <h4 class="text-success">₹{{ payments|sum_amount_paid|floatformat:2 }}</h4>
+                        <h4 class="text-success">ksh{{ payments|sum_amount_paid|floatformat:2 }}</h4>
                     </div>
                 </div>
                 <div class="col-md-3">
