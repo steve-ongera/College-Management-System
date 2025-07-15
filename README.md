@@ -1,4 +1,5 @@
 # College Management System
+steve
 
 A comprehensive Django-based College Management System designed to handle all aspects of educational institution management including student records, faculty management, academic scheduling, fee management, and more.
 
