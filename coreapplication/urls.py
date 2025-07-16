@@ -109,7 +109,7 @@ urlpatterns = [
     path('schedule/<int:schedule_id>/delete/', views.schedule_delete, name='schedule_delete'),
     
     # Timetable view
-    path('timetable/', views.schedule_timetable, name='schedule_timetable'),
+    path('schedule/timetable/', views.schedule_timetable, name='admin_schedule_timetable'),
     
     # AJAX endpoints
     path('api/subjects-by-course/', views.get_subjects_by_course, name='get_subjects_by_course'),
