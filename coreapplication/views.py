@@ -2934,3 +2934,344 @@ def faculty_delete(request, employee_id):
     }
     
     return render(request, 'faculty/faculty_confirm_delete.html', context)
+
+
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib import messages
+from django.db.models import Q
+from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
+from django.http import JsonResponse
+from .models import (
+    Schedule, Subject, Faculty, Classroom, TimeSlot, Semester, 
+    AcademicYear, Course, Department
+)
+
+@login_required
+def schedule_list(request):
+    """Display list of all schedules with comprehensive filtering"""
+    # Get filter parameters
+    course_filter = request.GET.get('course', '')
+    department_filter = request.GET.get('department', '')
+    faculty_filter = request.GET.get('faculty', '')
+    semester_filter = request.GET.get('semester', '')
+    day_filter = request.GET.get('day', '')
+    classroom_filter = request.GET.get('classroom', '')
+    search_query = request.GET.get('search', '')
+    
+    # Base queryset
+    schedules = Schedule.objects.select_related(
+        'subject', 'subject__course', 'subject__course__department',
+        'faculty', 'faculty__user', 'classroom', 'time_slot', 'semester'
+    ).filter(is_active=True)
+    
+    # Apply filters
+    if course_filter:
+        schedules = schedules.filter(subject__course_id=course_filter)
+    
+    if department_filter:
+        schedules = schedules.filter(subject__course__department_id=department_filter)
+    
+    if faculty_filter:
+        schedules = schedules.filter(faculty_id=faculty_filter)
+    
+    if semester_filter:
+        schedules = schedules.filter(semester_id=semester_filter)
+    
+    if day_filter:
+        schedules = schedules.filter(time_slot__day_of_week=day_filter)
+    
+    if classroom_filter:
+        schedules = schedules.filter(classroom_id=classroom_filter)
+    
+    # Search functionality
+    if search_query:
+        schedules = schedules.filter(
+            Q(subject__name__icontains=search_query) |
+            Q(subject__code__icontains=search_query) |
+            Q(faculty__user__first_name__icontains=search_query) |
+            Q(faculty__user__last_name__icontains=search_query) |
+            Q(classroom__name__icontains=search_query)
+        )
+    
+    # Order by day and time
+    schedules = schedules.order_by(
+        'time_slot__day_of_week', 
+        'time_slot__start_time',
+        'subject__course__name'
+    )
+    
+    # Pagination
+    paginator = Paginator(schedules, 15)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    # Get filter options
+    courses = Course.objects.filter(is_active=True).select_related('department')
+    departments = Department.objects.filter(is_active=True)
+    faculties = Faculty.objects.filter(is_active=True).select_related('user')
+    semesters = Semester.objects.all().select_related('academic_year')
+    classrooms = Classroom.objects.filter(is_active=True)
+    days = TimeSlot.DAY_CHOICES
+    
+    context = {
+        'page_obj': page_obj,
+        'courses': courses,
+        'departments': departments,
+        'faculties': faculties,
+        'semesters': semesters,
+        'classrooms': classrooms,
+        'days': days,
+        'course_filter': course_filter,
+        'department_filter': department_filter,
+        'faculty_filter': faculty_filter,
+        'semester_filter': semester_filter,
+        'day_filter': day_filter,
+        'classroom_filter': classroom_filter,
+        'search_query': search_query,
+    }
+    
+    return render(request, 'schedule/schedule_list.html', context)
+
+@login_required
+def schedule_detail(request, schedule_id):
+    """Display detailed information about a specific schedule"""
+    schedule = get_object_or_404(Schedule, id=schedule_id, is_active=True)
+    
+    # Get related schedules (same subject, different time slots)
+    related_schedules = Schedule.objects.filter(
+        subject=schedule.subject,
+        semester=schedule.semester,
+        is_active=True
+    ).exclude(id=schedule.id).select_related(
+        'faculty', 'faculty__user', 'classroom', 'time_slot'
+    )
+    
+    # Get students enrolled in this subject for this semester
+    from .models import Enrollment
+    enrolled_students = Enrollment.objects.filter(
+        subject=schedule.subject,
+        semester=schedule.semester,
+        is_active=True
+    ).select_related('student', 'student__user').count()
+    
+    context = {
+        'schedule': schedule,
+        'related_schedules': related_schedules,
+        'enrolled_students': enrolled_students,
+    }
+    
+    return render(request, 'schedule/schedule_detail.html', context)
+
+@login_required
+def schedule_create(request):
+    """Create a new schedule entry"""
+    if request.method == 'POST':
+        try:
+            # Check for conflicts
+            classroom_id = request.POST['classroom']
+            time_slot_id = request.POST['time_slot']
+            semester_id = request.POST['semester']
+            
+            # Check classroom-time conflict
+            existing_schedule = Schedule.objects.filter(
+                classroom_id=classroom_id,
+                time_slot_id=time_slot_id,
+                semester_id=semester_id,
+                is_active=True
+            ).first()
+            
+            if existing_schedule:
+                messages.error(request, f'Conflict: {existing_schedule.classroom.name} is already booked for this time slot.')
+                return redirect('schedule_create')
+            
+            # Check faculty availability
+            faculty_id = request.POST['faculty']
+            faculty_conflict = Schedule.objects.filter(
+                faculty_id=faculty_id,
+                time_slot_id=time_slot_id,
+                semester_id=semester_id,
+                is_active=True
+            ).first()
+            
+            if faculty_conflict:
+                messages.error(request, f'Conflict: Faculty is already scheduled for another subject at this time.')
+                return redirect('schedule_create')
+            
+            # Create schedule
+            schedule = Schedule.objects.create(
+                subject_id=request.POST['subject'],
+                faculty_id=faculty_id,
+                classroom_id=classroom_id,
+                time_slot_id=time_slot_id,
+                semester_id=semester_id,
+            )
+            
+            messages.success(request, f'Schedule created successfully for {schedule.subject.code}!')
+            return redirect('schedule_detail', schedule_id=schedule.id)
+            
+        except Exception as e:
+            messages.error(request, f'Error creating schedule: {str(e)}')
+    
+    # Get form options
+    subjects = Subject.objects.filter(is_active=True).select_related('course')
+    faculties = Faculty.objects.filter(is_active=True).select_related('user')
+    classrooms = Classroom.objects.filter(is_active=True)
+    time_slots = TimeSlot.objects.filter(is_active=True)
+    semesters = Semester.objects.all().select_related('academic_year')
+    courses = Course.objects.filter(is_active=True)
+    
+    context = {
+        'subjects': subjects,
+        'faculties': faculties,
+        'classrooms': classrooms,
+        'time_slots': time_slots,
+        'semesters': semesters,
+        'courses': courses,
+    }
+    
+    return render(request, 'schedule/schedule_form.html', context)
+
+@login_required
+def schedule_update(request, schedule_id):
+    """Update an existing schedule"""
+    schedule = get_object_or_404(Schedule, id=schedule_id, is_active=True)
+    
+    if request.method == 'POST':
+        try:
+            # Check for conflicts (excluding current schedule)
+            classroom_id = request.POST['classroom']
+            time_slot_id = request.POST['time_slot']
+            semester_id = request.POST['semester']
+            
+            # Check classroom-time conflict
+            existing_schedule = Schedule.objects.filter(
+                classroom_id=classroom_id,
+                time_slot_id=time_slot_id,
+                semester_id=semester_id,
+                is_active=True
+            ).exclude(id=schedule.id).first()
+            
+            if existing_schedule:
+                messages.error(request, f'Conflict: {existing_schedule.classroom.name} is already booked for this time slot.')
+                return redirect('schedule_update', schedule_id=schedule.id)
+            
+            # Check faculty availability
+            faculty_id = request.POST['faculty']
+            faculty_conflict = Schedule.objects.filter(
+                faculty_id=faculty_id,
+                time_slot_id=time_slot_id,
+                semester_id=semester_id,
+                is_active=True
+            ).exclude(id=schedule.id).first()
+            
+            if faculty_conflict:
+                messages.error(request, f'Conflict: Faculty is already scheduled for another subject at this time.')
+                return redirect('schedule_update', schedule_id=schedule.id)
+            
+            # Update schedule
+            schedule.subject_id = request.POST['subject']
+            schedule.faculty_id = faculty_id
+            schedule.classroom_id = classroom_id
+            schedule.time_slot_id = time_slot_id
+            schedule.semester_id = semester_id
+            schedule.save()
+            
+            messages.success(request, f'Schedule updated successfully!')
+            return redirect('schedule_detail', schedule_id=schedule.id)
+            
+        except Exception as e:
+            messages.error(request, f'Error updating schedule: {str(e)}')
+    
+    # Get form options
+    subjects = Subject.objects.filter(is_active=True).select_related('course')
+    faculties = Faculty.objects.filter(is_active=True).select_related('user')
+    classrooms = Classroom.objects.filter(is_active=True)
+    time_slots = TimeSlot.objects.filter(is_active=True)
+    semesters = Semester.objects.all().select_related('academic_year')
+    courses = Course.objects.filter(is_active=True)
+    
+    context = {
+        'schedule': schedule,
+        'subjects': subjects,
+        'faculties': faculties,
+        'classrooms': classrooms,
+        'time_slots': time_slots,
+        'semesters': semesters,
+        'courses': courses,
+    }
+    
+    return render(request, 'schedule/schedule_form.html', context)
+
+@login_required
+def schedule_delete(request, schedule_id):
+    """Delete a schedule entry"""
+    schedule = get_object_or_404(Schedule, id=schedule_id, is_active=True)
+    
+    if request.method == 'POST':
+        schedule.is_active = False
+        schedule.save()
+        messages.success(request, f'Schedule for {schedule.subject.code} has been deleted.')
+        return redirect('schedule_list')
+    
+    context = {
+        'schedule': schedule,
+    }
+    
+    return render(request, 'schedule/schedule_confirm_delete.html', context)
+
+@login_required
+def get_subjects_by_course(request):
+    """AJAX endpoint to get subjects for a specific course"""
+    course_id = request.GET.get('course_id')
+    if course_id:
+        subjects = Subject.objects.filter(course_id=course_id, is_active=True)
+        subjects_data = [{'id': s.id, 'name': f'{s.code} - {s.name}'} for s in subjects]
+        return JsonResponse({'subjects': subjects_data})
+    return JsonResponse({'subjects': []})
+
+@login_required
+def schedule_timetable(request):
+    """Display timetable view for a specific course and semester"""
+    course_id = request.GET.get('course')
+    semester_id = request.GET.get('semester')
+    
+    if not course_id or not semester_id:
+        courses = Course.objects.filter(is_active=True)
+        semesters = Semester.objects.all().select_related('academic_year')
+        return render(request, 'schedule/timetable_filter.html', {
+            'courses': courses,
+            'semesters': semesters,
+        })
+    
+    course = get_object_or_404(Course, id=course_id)
+    semester = get_object_or_404(Semester, id=semester_id)
+    
+    # Get all schedules for this course and semester
+    schedules = Schedule.objects.filter(
+        subject__course=course,
+        semester=semester,
+        is_active=True
+    ).select_related(
+        'subject', 'faculty', 'faculty__user', 'classroom', 'time_slot'
+    ).order_by('time_slot__day_of_week', 'time_slot__start_time')
+    
+    # Organize by day and time
+    timetable = {}
+    days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+    
+    for day in days:
+        timetable[day] = schedules.filter(time_slot__day_of_week=day)
+    
+    # Get all time slots for reference
+    time_slots = TimeSlot.objects.filter(is_active=True).order_by('start_time')
+    
+    context = {
+        'course': course,
+        'semester': semester,
+        'timetable': timetable,
+        'time_slots': time_slots,
+        'schedules': schedules,
+    }
+    
+    return render(request, 'schedule/timetable.html', context)

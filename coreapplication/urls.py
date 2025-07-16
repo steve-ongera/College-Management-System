@@ -101,4 +101,17 @@ urlpatterns = [
     path('faculty/<str:employee_id>/update/', views.faculty_update, name='faculty_update'),
     path('faculty/<str:employee_id>/delete/', views.faculty_delete, name='faculty_delete'),
 
+    # Schedule CRUD operations
+    path('schedule/', views.schedule_list, name='schedule_list'),
+    path('schedule/create/', views.schedule_create, name='schedule_create'),
+    path('schedule/<int:schedule_id>/', views.schedule_detail, name='schedule_detail'),
+    path('schedule/<int:schedule_id>/update/', views.schedule_update, name='schedule_update'),
+    path('schedule/<int:schedule_id>/delete/', views.schedule_delete, name='schedule_delete'),
+    
+    # Timetable view
+    path('timetable/', views.schedule_timetable, name='schedule_timetable'),
+    
+    # AJAX endpoints
+    path('api/subjects-by-course/', views.get_subjects_by_course, name='get_subjects_by_course'),
+
  ]
