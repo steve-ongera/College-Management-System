@@ -2714,3 +2714,223 @@ def student_delete(request, student_id):
     }
     
     return render(request, 'admin/students/student_confirm_delete.html', context)
+
+
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib import messages
+from django.db.models import Q
+from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
+from .models import Faculty, User, Department, AcademicYear, Semester, Schedule
+
+@login_required
+def faculty_list(request):
+    """Display list of all faculty members with search and pagination"""
+    search_query = request.GET.get('search', '')
+    department_filter = request.GET.get('department', '')
+    designation_filter = request.GET.get('designation', '')
+    
+    faculties = Faculty.objects.select_related('user', 'department').filter(is_active=True)
+    
+    # Search functionality
+    if search_query:
+        faculties = faculties.filter(
+            Q(user__first_name__icontains=search_query) |
+            Q(user__last_name__icontains=search_query) |
+            Q(employee_id__icontains=search_query) |
+            Q(user__email__icontains=search_query)
+        )
+    
+    # Department filter
+    if department_filter:
+        faculties = faculties.filter(department_id=department_filter)
+    
+    # Designation filter
+    if designation_filter:
+        faculties = faculties.filter(designation=designation_filter)
+    
+    # Pagination
+    paginator = Paginator(faculties, 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    # Get departments and designations for filters
+    departments = Department.objects.filter(is_active=True)
+    designations = Faculty.DESIGNATION_CHOICES
+    
+    context = {
+        'page_obj': page_obj,
+        'search_query': search_query,
+        'departments': departments,
+        'designations': designations,
+        'department_filter': department_filter,
+        'designation_filter': designation_filter,
+    }
+    
+    return render(request, 'faculty/faculty_list.html', context)
+
+@login_required
+def faculty_detail(request, employee_id):
+    """Display detailed information about a specific faculty member"""
+    faculty = get_object_or_404(Faculty, employee_id=employee_id, is_active=True)
+    
+    # Get current academic year and semester
+    current_academic_year = AcademicYear.objects.filter(is_current=True).first()
+    current_semester = None
+    
+    if current_academic_year:
+        current_semester = Semester.objects.filter(
+            academic_year=current_academic_year,
+            is_current=True
+        ).first()
+    
+    # Get subjects scheduled for current semester
+    scheduled_subjects = []
+    if current_semester:
+        schedules = Schedule.objects.select_related(
+            'subject', 'classroom', 'time_slot'
+        ).filter(
+            faculty=faculty,
+            semester=current_semester,
+            is_active=True
+        ).order_by('time_slot__day_of_week', 'time_slot__start_time')
+        
+        scheduled_subjects = schedules
+    
+    context = {
+        'faculty': faculty,
+        'current_academic_year': current_academic_year,
+        'current_semester': current_semester,
+        'scheduled_subjects': scheduled_subjects,
+    }
+    
+    return render(request, 'faculty/faculty_detail.html', context)
+
+@login_required
+def faculty_create(request):
+    """Create a new faculty member"""
+    if request.method == 'POST':
+        try:
+            # Create User first
+            user = User.objects.create_user(
+                username=request.POST['username'],
+                email=request.POST['email'],
+                first_name=request.POST['first_name'],
+                last_name=request.POST['last_name'],
+                user_type='faculty',
+                phone=request.POST.get('phone', ''),
+                address=request.POST.get('address', ''),
+                gender=request.POST.get('gender', ''),
+                date_of_birth=request.POST.get('date_of_birth') or None,
+            )
+            
+            # Set password
+            user.set_password(request.POST['password'])
+            user.save()
+            
+            # Create Faculty profile
+            faculty = Faculty.objects.create(
+                user=user,
+                employee_id=request.POST['employee_id'],
+                department_id=request.POST['department'],
+                designation=request.POST['designation'],
+                qualification=request.POST['qualification'],
+                experience_years=int(request.POST.get('experience_years', 0)),
+                specialization=request.POST.get('specialization', ''),
+                salary=request.POST.get('salary') or None,
+                joining_date=request.POST['joining_date'],
+            )
+            
+            messages.success(request, f'Faculty member {faculty.user.get_full_name()} created successfully!')
+            return redirect('faculty_detail', employee_id=faculty.employee_id)
+            
+        except Exception as e:
+            messages.error(request, f'Error creating faculty: {str(e)}')
+    
+    departments = Department.objects.filter(is_active=True)
+    designations = Faculty.DESIGNATION_CHOICES
+    
+    context = {
+        'departments': departments,
+        'designations': designations,
+    }
+    
+    return render(request, 'faculty/faculty_form.html', context)
+
+@login_required
+def faculty_update(request, employee_id):
+    """Update an existing faculty member"""
+    faculty = get_object_or_404(Faculty, employee_id=employee_id, is_active=True)
+    
+    if request.method == 'POST':
+        try:
+            # Update User information
+            user = faculty.user
+            user.username = request.POST['username']
+            user.email = request.POST['email']
+            user.first_name = request.POST['first_name']
+            user.last_name = request.POST['last_name']
+            user.phone = request.POST.get('phone', '')
+            user.address = request.POST.get('address', '')
+            user.gender = request.POST.get('gender', '')
+            user.date_of_birth = request.POST.get('date_of_birth') or None
+            
+            # Update password if provided
+            if request.POST.get('password'):
+                user.set_password(request.POST['password'])
+            
+            user.save()
+            
+            # Update Faculty information
+            faculty.employee_id = request.POST['employee_id']
+            faculty.department_id = request.POST['department']
+            faculty.designation = request.POST['designation']
+            faculty.qualification = request.POST['qualification']
+            faculty.experience_years = int(request.POST.get('experience_years', 0))
+            faculty.specialization = request.POST.get('specialization', '')
+            faculty.salary = request.POST.get('salary') or None
+            faculty.joining_date = request.POST['joining_date']
+            
+            faculty.save()
+            
+            messages.success(request, f'Faculty member {faculty.user.get_full_name()} updated successfully!')
+            return redirect('faculty_detail', employee_id=faculty.employee_id)
+            
+        except Exception as e:
+            messages.error(request, f'Error updating faculty: {str(e)}')
+    
+    departments = Department.objects.filter(is_active=True)
+    designations = Faculty.DESIGNATION_CHOICES
+    
+    context = {
+        'faculty': faculty,
+        'departments': departments,
+        'designations': designations,
+    }
+    
+    return render(request, 'faculty/faculty_form.html', context)
+
+@login_required
+def faculty_delete(request, employee_id):
+    """Delete (deactivate) a faculty member"""
+    faculty = get_object_or_404(Faculty, employee_id=employee_id, is_active=True)
+    
+    if request.method == 'POST':
+        # Soft delete - just deactivate
+        faculty.is_active = False
+        faculty.user.is_active = False
+        faculty.save()
+        faculty.user.save()
+        
+        messages.success(request, f'Faculty member {faculty.user.get_full_name()} has been deactivated.')
+        return redirect('faculty_list')
+    
+    # Check if faculty has any active schedules
+    active_schedules = Schedule.objects.filter(faculty=faculty, is_active=True).count()
+    
+    context = {
+        'faculty': faculty,
+        'active_schedules': active_schedules,
+    }
+    
+    return render(request, 'faculty/faculty_confirm_delete.html', context)

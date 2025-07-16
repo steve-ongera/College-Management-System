@@ -285,7 +285,8 @@ class TimeSlot(models.Model):
     
     def __str__(self):
         return f"{self.day_of_week} {self.start_time} - {self.end_time}"
-
+    
+#unit allocation to faculty ie lectuers
 class Schedule(models.Model):
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name='schedules')
     faculty = models.ForeignKey(Faculty, on_delete=models.CASCADE, related_name='schedules')

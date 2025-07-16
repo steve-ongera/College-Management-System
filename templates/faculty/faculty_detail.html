@@ -1,0 +1,169 @@
+{% extends 'admin_base.html' %}
+
+{% block title %}Faculty Details - {{ faculty.user.get_full_name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>Faculty Details - {{ faculty.user.get_full_name }}</h2>
+                <div>
+                    <a href="{% url 'faculty_list' %}" class="btn btn-secondary">Back to List</a>
+                    <a href="{% url 'faculty_update' faculty.employee_id %}" class="btn btn-warning">Edit</a>
+                    <a href="{% url 'faculty_delete' faculty.employee_id %}" class="btn btn-danger">Delete</a>
+                </div>
+            </div>
+            
+            <div class="row">
+                <!-- Personal Information -->
+                <div class="col-md-6">
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5>Personal Information</h5>
+                        </div>
+                        <div class="card-body">
+                            <table class="table table-borderless">
+                                <tr>
+                                    <td><strong>Employee ID:</strong></td>
+                                    <td>{{ faculty.employee_id }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Full Name:</strong></td>
+                                    <td>{{ faculty.user.get_full_name }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Username:</strong></td>
+                                    <td>{{ faculty.user.username }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Email:</strong></td>
+                                    <td>{{ faculty.user.email }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Phone:</strong></td>
+                                    <td>{{ faculty.user.phone|default:"-" }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Gender:</strong></td>
+                                    <td>{{ faculty.user.get_gender_display|default:"-" }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Date of Birth:</strong></td>
+                                    <td>{{ faculty.user.date_of_birth|default:"-" }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Address:</strong></td>
+                                    <td>{{ faculty.user.address|default:"-" }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Professional Information -->
+                <div class="col-md-6">
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5>Professional Information</h5>
+                        </div>
+                        <div class="card-body">
+                            <table class="table table-borderless">
+                                <tr>
+                                    <td><strong>Department:</strong></td>
+                                    <td>{{ faculty.department.name }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Designation:</strong></td>
+                                    <td>{{ faculty.get_designation_display }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Qualification:</strong></td>
+                                    <td>{{ faculty.qualification }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Experience:</strong></td>
+                                    <td>{{ faculty.experience_years }} years</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Specialization:</strong></td>
+                                    <td>{{ faculty.specialization|default:"-" }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Joining Date:</strong></td>
+                                    <td>{{ faculty.joining_date }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Salary:</strong></td>
+                                    <td>{% if faculty.salary %}{{ faculty.salary }}{% else %}-{% endif %}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Status:</strong></td>
+                                    <td>
+                                        {% if faculty.is_active %}
+                                            <span class="badge badge-success">Active</span>
+                                        {% else %}
+                                            <span class="badge badge-danger">Inactive</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Current Schedule -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Current Schedule 
+                                {% if current_academic_year and current_semester %}
+                                    ({{ current_academic_year.year }} - Semester {{ current_semester.semester_number }})
+                                {% endif %}
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            {% if scheduled_subjects %}
+                                <table class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Subject Code</th>
+                                            <th>Subject Name</th>
+                                            <th>Day</th>
+                                            <th>Time</th>
+                                            <th>Classroom</th>
+                                            <th>Credits</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for schedule in scheduled_subjects %}
+                                        <tr>
+                                            <td>{{ schedule.subject.code }}</td>
+                                            <td>{{ schedule.subject.name }}</td>
+                                            <td>{{ schedule.time_slot.get_day_of_week_display }}</td>
+                                            <td>{{ schedule.time_slot.start_time }} - {{ schedule.time_slot.end_time }}</td>
+                                            <td>{{ schedule.classroom.name }} ({{ schedule.classroom.room_number }})</td>
+                                            <td>{{ schedule.subject.credits }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            {% else %}
+                                <p class="text-muted">
+                                    {% if current_academic_year and current_semester %}
+                                        No subjects scheduled for the current semester.
+                                    {% else %}
+                                        No current academic year or semester found.
+                                    {% endif %}
+                                </p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
