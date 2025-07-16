@@ -398,3 +398,105 @@ class StudentForm(forms.ModelForm):
             if Student.objects.filter(student_id=student_id).exists():
                 raise forms.ValidationError("Student ID already exists")
         return student_id
+
+
+# forms.py
+from django import forms
+from django.core.exceptions import ValidationError
+from .models import Course, Department
+
+class CourseForm(forms.ModelForm):
+    class Meta:
+        model = Course
+        fields = [
+            'name', 'code', 'course_type', 'department', 
+            'duration_years', 'total_semesters', 'description', 
+            'fees_per_semester', 'is_active'
+        ]
+        widgets = {
+            'name': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Enter course name'
+            }),
+            'code': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Enter course code (e.g., CSE101)',
+                'style': 'text-transform: uppercase;'
+            }),
+            'course_type': forms.Select(attrs={
+                'class': 'form-select'
+            }),
+            'department': forms.Select(attrs={
+                'class': 'form-select'
+            }),
+            'duration_years': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'min': '1',
+                'max': '5',
+                'placeholder': 'Number of years'
+            }),
+            'total_semesters': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'min': '2',
+                'max': '10',
+                'placeholder': 'Total semesters'
+            }),
+            'description': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': '4',
+                'placeholder': 'Enter course description...'
+            }),
+            'fees_per_semester': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'step': '0.01',
+                'min': '0',
+                'placeholder': 'Fee amount per semester'
+            }),
+            'is_active': forms.CheckboxInput(attrs={
+                'class': 'form-check-input'
+            })
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Filter active departments only
+        self.fields['department'].queryset = Department.objects.filter(is_active=True)
+        
+        # Set initial value for is_active
+        if not self.instance.pk:
+            self.fields['is_active'].initial = True
+        
+        # Add required indicator to labels
+        required_fields = ['name', 'code', 'course_type', 'department', 'duration_years', 'total_semesters', 'fees_per_semester']
+        for field_name in required_fields:
+            if field_name in self.fields:
+                self.fields[field_name].label = f"{self.fields[field_name].label} *"
+
+    def clean_code(self):
+        code = self.cleaned_data.get('code')
+        if code:
+            code = code.upper()
+            # Check if code already exists (excluding current instance if editing)
+            existing = Course.objects.filter(code=code)
+            if self.instance.pk:
+                existing = existing.exclude(pk=self.instance.pk)
+            if existing.exists():
+                raise ValidationError("A course with this code already exists.")
+        return code
+
+    def clean(self):
+        cleaned_data = super().clean()
+        duration_years = cleaned_data.get('duration_years')
+        total_semesters = cleaned_data.get('total_semesters')
+        
+        if duration_years and total_semesters:
+            # Basic validation: semesters should be reasonable for the duration
+            min_semesters = duration_years * 2  # 2 semesters per year minimum
+            max_semesters = duration_years * 2  # 2 semesters per year maximum
+            
+            if total_semesters < min_semesters or total_semesters > max_semesters:
+                raise ValidationError(
+                    f"For {duration_years} years, total semesters should be {min_semesters} to {max_semesters}."
+                )
+        
+        return cleaned_data

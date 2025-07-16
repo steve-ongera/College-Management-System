@@ -3275,3 +3275,297 @@ def schedule_timetable(request):
     }
     
     return render(request, 'schedule/timetable.html', context)
+
+
+
+# views.py
+from django.shortcuts import render, get_object_or_404
+from django.db.models import Count, Q
+from django.http import JsonResponse
+from django.core.paginator import Paginator
+from .models import Course, Subject, Department
+import json
+
+def course_list_view(request):
+    """
+    Display all courses with filtering and pagination
+    """
+    # Get filter parameters
+    department_id = request.GET.get('department')
+    course_type = request.GET.get('course_type')
+    search = request.GET.get('search', '')
+    
+    # Base queryset
+    courses = Course.objects.filter(is_active=True).select_related('department')
+    
+    # Apply filters
+    if department_id:
+        courses = courses.filter(department_id=department_id)
+    
+    if course_type:
+        courses = courses.filter(course_type=course_type)
+    
+    if search:
+        courses = courses.filter(
+            Q(name__icontains=search) | 
+            Q(code__icontains=search) |
+            Q(department__name__icontains=search)
+        )
+    
+    # Annotate with subject count
+    courses = courses.annotate(
+        subject_count=Count('subjects', filter=Q(subjects__is_active=True))
+    )
+    
+    # Pagination
+    paginator = Paginator(courses, 12)  # Show 12 courses per page
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    # Get departments for filter dropdown
+    departments = Department.objects.filter(is_active=True).order_by('name')
+    
+    context = {
+        'courses': page_obj,
+        'departments': departments,
+        'course_types': Course.COURSE_TYPES,
+        'current_department': department_id,
+        'current_course_type': course_type,
+        'search_query': search,
+        'total_courses': courses.count(),
+    }
+    
+    return render(request, 'courses/course_list.html', context)
+
+
+def course_detail_view(request, course_id):
+    """
+    Display course details with subjects organized by year and semester
+    """
+    course = get_object_or_404(Course, id=course_id, is_active=True)
+    
+    # Get all subjects for this course
+    subjects = Subject.objects.filter(
+        course=course, 
+        is_active=True
+    ).select_related('course').prefetch_related('prerequisites')
+    
+    # Organize subjects by year and semester
+    subjects_by_year = {}
+    
+    for subject in subjects:
+        year = subject.year
+        semester = subject.semester
+        
+        if year not in subjects_by_year:
+            subjects_by_year[year] = {}
+        
+        if semester not in subjects_by_year[year]:
+            subjects_by_year[year][semester] = []
+        
+        subjects_by_year[year][semester].append(subject)
+    
+    # Sort years and semesters
+    for year in subjects_by_year:
+        subjects_by_year[year] = dict(sorted(subjects_by_year[year].items()))
+    
+    subjects_by_year = dict(sorted(subjects_by_year.items()))
+    
+    # Calculate totals
+    total_credits = sum(subject.credits for subject in subjects)
+    total_theory_hours = sum(subject.theory_hours for subject in subjects)
+    total_practical_hours = sum(subject.practical_hours for subject in subjects)
+    
+    # Get course statistics
+    course_stats = {
+        'total_subjects': subjects.count(),
+        'total_credits': total_credits,
+        'total_theory_hours': total_theory_hours,
+        'total_practical_hours': total_practical_hours,
+        'elective_subjects': subjects.filter(is_elective=True).count(),
+        'core_subjects': subjects.filter(is_elective=False).count(),
+    }
+    
+    context = {
+        'course': course,
+        'subjects_by_year': subjects_by_year,
+        'course_stats': course_stats,
+        'years': sorted(subjects_by_year.keys()),
+    }
+    
+    return render(request, 'courses/course_detail.html', context)
+
+
+def get_course_subjects_json(request, course_id):
+    """
+    API endpoint to get course subjects in JSON format for AJAX calls
+    """
+    course = get_object_or_404(Course, id=course_id, is_active=True)
+    
+    subjects = Subject.objects.filter(
+        course=course, 
+        is_active=True
+    ).select_related('course').prefetch_related('prerequisites')
+    
+    subjects_data = {}
+    
+    for subject in subjects:
+        year = subject.year
+        semester = subject.semester
+        
+        if year not in subjects_data:
+            subjects_data[year] = {}
+        
+        if semester not in subjects_data[year]:
+            subjects_data[year][semester] = []
+        
+        # Get prerequisites
+        prerequisites = [
+            {'id': prereq.id, 'name': prereq.name, 'code': prereq.code}
+            for prereq in subject.prerequisites.all()
+        ]
+        
+        subjects_data[year][semester].append({
+            'id': subject.id,
+            'name': subject.name,
+            'code': subject.code,
+            'credits': subject.credits,
+            'theory_hours': subject.theory_hours,
+            'practical_hours': subject.practical_hours,
+            'is_elective': subject.is_elective,
+            'prerequisites': prerequisites,
+        })
+    
+    return JsonResponse({
+        'course': {
+            'id': course.id,
+            'name': course.name,
+            'code': course.code,
+            'course_type': course.course_type,
+            'department': course.department.name,
+        },
+        'subjects': subjects_data
+    })
+
+
+def department_courses_view(request, department_id):
+    """
+    Display all courses in a specific department
+    """
+    department = get_object_or_404(Department, id=department_id, is_active=True)
+    
+    courses = Course.objects.filter(
+        department=department,
+        is_active=True
+    ).annotate(
+        subject_count=Count('subjects', filter=Q(subjects__is_active=True))
+    ).order_by('name')
+    
+    context = {
+        'department': department,
+        'courses': courses,
+    }
+    
+    return render(request, 'courses/department_courses.html', context)
+
+
+
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.http import JsonResponse
+from .forms import CourseForm
+from .models import Course, Department
+
+@login_required
+def add_course_view(request):
+    """
+    View to add a new course
+    """
+    if request.method == 'POST':
+        form = CourseForm(request.POST)
+        if form.is_valid():
+            course = form.save()
+            messages.success(request, f'Course "{course.name}" has been added successfully!')
+            
+            # Redirect based on user preference
+            if 'save_and_continue' in request.POST:
+                return redirect('add_course')
+            else:
+                return redirect('course_detail', course_id=course.id)
+        else:
+            messages.error(request, 'Please correct the errors below.')
+    else:
+        form = CourseForm()
+    
+    context = {
+        'form': form,
+        'title': 'Add New Course',
+        'departments': Department.objects.filter(is_active=True).count(),
+    }
+    
+    return render(request, 'courses/add_course.html', context)
+
+@login_required
+def edit_course_view(request, course_id):
+    """
+    View to edit an existing course
+    """
+    course = get_object_or_404(Course, id=course_id)
+    
+    if request.method == 'POST':
+        form = CourseForm(request.POST, instance=course)
+        if form.is_valid():
+            updated_course = form.save()
+            messages.success(request, f'Course "{updated_course.name}" has been updated successfully!')
+            return redirect('course_detail', course_id=updated_course.id)
+        else:
+            messages.error(request, 'Please correct the errors below.')
+    else:
+        form = CourseForm(instance=course)
+    
+    context = {
+        'form': form,
+        'course': course,
+        'title': f'Edit Course - {course.name}',
+        'is_editing': True,
+    }
+    
+    return render(request, 'courses/add_course.html', context)
+
+@login_required
+def delete_course_view(request, course_id):
+    """
+    View to delete a course
+    """
+    course = get_object_or_404(Course, id=course_id)
+    
+    if request.method == 'POST':
+        course_name = course.name
+        course.delete()
+        messages.success(request, f'Course "{course_name}" has been deleted successfully!')
+        return redirect('course_list')
+    
+    context = {
+        'course': course,
+        'students_count': course.students.count(),
+        'subjects_count': course.subjects.count(),
+    }
+    
+    return render(request, 'courses/delete_course.html', context)
+
+def check_course_code(request):
+    """
+    AJAX view to check if course code is available
+    """
+    code = request.GET.get('code', '').upper()
+    course_id = request.GET.get('course_id')
+    
+    if not code:
+        return JsonResponse({'available': True})
+    
+    existing = Course.objects.filter(code=code)
+    if course_id:
+        existing = existing.exclude(pk=course_id)
+    
+    return JsonResponse({'available': not existing.exists()})

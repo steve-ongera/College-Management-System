@@ -1,0 +1,184 @@
+<!-- templates/courses/course_list.html -->
+{% extends 'admin_base.html' %}
+{% load static %}
+
+{% block title %}Courses - {{ block.super }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .course-card {
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .course-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+    }
+    .course-type-badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.75rem;
+        border-radius: 1rem;
+    }
+    .stats-icon {
+        width: 1.25rem;
+        height: 1.25rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="h3 mb-0">Courses</h1>
+                <span class="badge bg-info">{{ total_courses }} Total Courses</span>
+            </div>
+
+            <!-- Filters -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <form method="GET" class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label">Department</label>
+                            <select name="department" class="form-select">
+                                <option value="">All Departments</option>
+                                {% for dept in departments %}
+                                    <option value="{{ dept.id }}" {% if dept.id|stringformat:"s" == current_department %}selected{% endif %}>
+                                        {{ dept.name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Course Type</label>
+                            <select name="course_type" class="form-select">
+                                <option value="">All Types</option>
+                                {% for type_code, type_name in course_types %}
+                                    <option value="{{ type_code }}" {% if type_code == current_course_type %}selected{% endif %}>
+                                        {{ type_name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Search</label>
+                            <input type="text" name="search" class="form-control" placeholder="Search courses..." value="{{ search_query }}">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">&nbsp;</label>
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary">Filter</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Course Cards -->
+            <div class="row">
+                {% for course in courses %}
+                    <div class="col-xl-4 col-lg-6 col-md-6 mb-4">
+                        <div class="card course-card h-100">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                    <h5 class="card-title mb-0">{{ course.name }}</h5>
+                                    <span class="course-type-badge bg-primary text-white">
+                                        {{ course.get_course_type_display }}
+                                    </span>
+                                </div>
+                                
+                                <p class="text-muted mb-2">{{ course.code }}</p>
+                                <p class="text-muted mb-3">{{ course.department.name }}</p>
+                                
+                                {% if course.description %}
+                                    <p class="card-text small text-muted mb-3">
+                                        {{ course.description|truncatewords:15 }}
+                                    </p>
+                                {% endif %}
+                                
+                                <div class="row text-center mb-3">
+                                    <div class="col-4">
+                                        <div class="d-flex align-items-center justify-content-center">
+                                            <i class="fas fa-book stats-icon text-primary me-1"></i>
+                                            <small>{{ course.subject_count }} Subjects</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-4">
+                                        <div class="d-flex align-items-center justify-content-center">
+                                            <i class="fas fa-clock stats-icon text-success me-1"></i>
+                                            <small>{{ course.duration_years }} Years</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-4">
+                                        <div class="d-flex align-items-center justify-content-center">
+                                            <i class="fas fa-calendar stats-icon text-warning me-1"></i>
+                                            <small>{{ course.total_semesters }} Sems</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="text-center">
+                                    <strong class="text-primary">₹{{ course.fees_per_semester|floatformat:0 }}</strong>
+                                    <small class="text-muted">/ semester</small>
+                                </div>
+                            </div>
+                            <div class="card-footer bg-transparent">
+                                <a href="{% url 'course_detail' course.id %}" class="btn btn-outline-primary btn-sm w-100">
+                                    View Details
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                {% empty %}
+                    <div class="col-12">
+                        <div class="text-center py-5">
+                            <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                            <h4 class="text-muted">No courses found</h4>
+                            <p class="text-muted">Try adjusting your filters or search terms.</p>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+
+            <!-- Pagination -->
+            {% if courses.has_other_pages %}
+                <nav aria-label="Course pagination">
+                    <ul class="pagination justify-content-center">
+                        {% if courses.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ courses.previous_page_number }}{% if current_department %}&department={{ current_department }}{% endif %}{% if current_course_type %}&course_type={{ current_course_type }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}">
+                                    Previous
+                                </a>
+                            </li>
+                        {% endif %}
+                        
+                        {% for num in courses.paginator.page_range %}
+                            {% if courses.number == num %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ num }}</span>
+                                </li>
+                            {% else %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ num }}{% if current_department %}&department={{ current_department }}{% endif %}{% if current_course_type %}&course_type={{ current_course_type }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}">
+                                        {{ num }}
+                                    </a>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        {% if courses.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ courses.next_page_number }}{% if current_department %}&department={{ current_department }}{% endif %}{% if current_course_type %}&course_type={{ current_course_type }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}">
+                                    Next
+                                </a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+

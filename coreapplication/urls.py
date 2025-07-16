@@ -114,4 +114,13 @@ urlpatterns = [
     # AJAX endpoints
     path('api/subjects-by-course/', views.get_subjects_by_course, name='get_subjects_by_course'),
 
+    # Course List View
+    path('courses/', views.course_list_view, name='course_list'),
+    path('courses/<int:course_id>/', views.course_detail_view, name='course_detail'),
+    path('api/courses/<int:course_id>/subjects/', views.get_course_subjects_json, name='course_subjects_api'),
+    path('courses/add/', views.add_course_view, name='add_course'),
+    path('courses/<int:course_id>/edit/', views.edit_course_view, name='edit_course'),
+    path('courses/<int:course_id>/delete/', views.delete_course_view, name='delete_course'),
+    path('courses/check_code/', views.check_course_code, name='check_course_code'),
+
  ]
