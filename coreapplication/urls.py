@@ -133,4 +133,16 @@ urlpatterns = [
     path('subjects/<int:pk>/edit/', views.subject_update, name='subject_update'),
     path('subjects/<int:pk>/delete/', views.subject_delete, name='subject_delete'),
 
+    # Academic Year Management
+    path('admin-academic-years/', views.academic_year_management, name='academic_year_management'),
+    path('admin-create-academic-year/', views.create_academic_year, name='create_academic_year'),
+    path('admin-edit-academic-year/<int:year_id>/', views.edit_academic_year, name='edit_academic_year'),
+    path('admin-toggle-current-year/<int:year_id>/', views.toggle_current_year, name='toggle_current_year'),
+    
+    # Semester Management
+    path('admin-create-semester/<int:year_id>/', views.create_semester, name='create_semester'),
+    path('admin-edit-semester/<int:semester_id>/', views.edit_semester, name='edit_semester'),
+    path('admin-toggle-current-semester/<int:semester_id>/', views.toggle_current_semester, name='toggle_current_semester'),
+    path('admin-delete-semester/<int:semester_id>/', views.delete_semester, name='delete_semester'),
+
  ]

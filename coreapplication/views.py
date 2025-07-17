@@ -3978,3 +3978,238 @@ def subject_delete(request, pk):
     }
     
     return render(request, 'subjects/subject_confirm_delete.html', context)
+
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.db import transaction
+from django.urls import reverse
+from .models import AcademicYear, Semester
+
+@login_required
+def academic_year_management(request):
+    """Display academic years and semesters management page"""
+    academic_years = AcademicYear.objects.all().order_by('-year')
+    
+    context = {
+        'academic_years': academic_years,
+    }
+    
+    return render(request, 'admin/academic_year_management.html', context)
+
+@login_required
+def create_academic_year(request):
+    """Create a new academic year"""
+    if request.method == 'POST':
+        year = request.POST.get('year')
+        start_date = request.POST.get('start_date')
+        end_date = request.POST.get('end_date')
+        is_current = request.POST.get('is_current') == 'on'
+        
+        try:
+            with transaction.atomic():
+                # If this is set as current, make all others non-current
+                if is_current:
+                    AcademicYear.objects.filter(is_current=True).update(is_current=False)
+                
+                academic_year = AcademicYear.objects.create(
+                    year=year,
+                    start_date=start_date,
+                    end_date=end_date,
+                    is_current=is_current
+                )
+                
+                messages.success(request, f'Academic year {year} created successfully!')
+                
+        except Exception as e:
+            messages.error(request, f'Error creating academic year: {str(e)}')
+    
+    return redirect('academic_year_management')
+
+@login_required
+def edit_academic_year(request, year_id):
+    """Edit an existing academic year"""
+    academic_year = get_object_or_404(AcademicYear, id=year_id)
+    
+    if request.method == 'POST':
+        year = request.POST.get('year')
+        start_date = request.POST.get('start_date')
+        end_date = request.POST.get('end_date')
+        is_current = request.POST.get('is_current') == 'on'
+        
+        try:
+            with transaction.atomic():
+                # If this is set as current, make all others non-current
+                if is_current:
+                    AcademicYear.objects.exclude(id=year_id).filter(is_current=True).update(is_current=False)
+                
+                academic_year.year = year
+                academic_year.start_date = start_date
+                academic_year.end_date = end_date
+                academic_year.is_current = is_current
+                academic_year.save()
+                
+                messages.success(request, f'Academic year {year} updated successfully!')
+                
+        except Exception as e:
+            messages.error(request, f'Error updating academic year: {str(e)}')
+    
+    return redirect('academic_year_management')
+
+@login_required
+def toggle_current_year(request, year_id):
+    """Toggle current status of an academic year"""
+    academic_year = get_object_or_404(AcademicYear, id=year_id)
+    
+    if request.method == 'POST':
+        is_current = request.POST.get('is_current') == 'on'
+        
+        try:
+            with transaction.atomic():
+                if is_current:
+                    # Make all others non-current
+                    AcademicYear.objects.exclude(id=year_id).update(is_current=False)
+                    # Also make all semesters in other years non-current
+                    Semester.objects.exclude(academic_year_id=year_id).update(is_current=False)
+                
+                academic_year.is_current = is_current
+                academic_year.save()
+                
+                status = 'current' if is_current else 'non-current'
+                messages.success(request, f'Academic year {academic_year.year} set as {status}!')
+                
+        except Exception as e:
+            messages.error(request, f'Error updating academic year status: {str(e)}')
+    
+    return redirect('academic_year_management')
+
+@login_required
+def create_semester(request, year_id):
+    """Create a new semester for an academic year"""
+    academic_year = get_object_or_404(AcademicYear, id=year_id)
+    
+    if request.method == 'POST':
+        semester_number = request.POST.get('semester_number')
+        start_date = request.POST.get('start_date')
+        end_date = request.POST.get('end_date')
+        is_current = request.POST.get('is_current') == 'on'
+        
+        try:
+            with transaction.atomic():
+                # Check if semester already exists
+                if Semester.objects.filter(academic_year=academic_year, semester_number=semester_number).exists():
+                    messages.error(request, f'Semester {semester_number} already exists for {academic_year.year}!')
+                    return redirect('academic_year_management')
+                
+                # If this is set as current, make all others non-current
+                if is_current:
+                    Semester.objects.filter(is_current=True).update(is_current=False)
+                    # Also make the academic year current if semester is current
+                    if not academic_year.is_current:
+                        AcademicYear.objects.filter(is_current=True).update(is_current=False)
+                        academic_year.is_current = True
+                        academic_year.save()
+                
+                semester = Semester.objects.create(
+                    academic_year=academic_year,
+                    semester_number=semester_number,
+                    start_date=start_date,
+                    end_date=end_date,
+                    is_current=is_current
+                )
+                
+                messages.success(request, f'Semester {semester_number} created successfully for {academic_year.year}!')
+                
+        except Exception as e:
+            messages.error(request, f'Error creating semester: {str(e)}')
+    
+    return redirect('academic_year_management')
+
+@login_required
+def edit_semester(request, semester_id):
+    """Edit an existing semester"""
+    semester = get_object_or_404(Semester, id=semester_id)
+    
+    if request.method == 'POST':
+        semester_number = request.POST.get('semester_number')
+        start_date = request.POST.get('start_date')
+        end_date = request.POST.get('end_date')
+        is_current = request.POST.get('is_current') == 'on'
+        
+        try:
+            with transaction.atomic():
+                # Check if semester number already exists (excluding current semester)
+                if Semester.objects.filter(
+                    academic_year=semester.academic_year, 
+                    semester_number=semester_number
+                ).exclude(id=semester_id).exists():
+                    messages.error(request, f'Semester {semester_number} already exists for {semester.academic_year.year}!')
+                    return redirect('academic_year_management')
+                
+                # If this is set as current, make all others non-current
+                if is_current:
+                    Semester.objects.exclude(id=semester_id).filter(is_current=True).update(is_current=False)
+                    # Also make the academic year current if semester is current
+                    if not semester.academic_year.is_current:
+                        AcademicYear.objects.filter(is_current=True).update(is_current=False)
+                        semester.academic_year.is_current = True
+                        semester.academic_year.save()
+                
+                semester.semester_number = semester_number
+                semester.start_date = start_date
+                semester.end_date = end_date
+                semester.is_current = is_current
+                semester.save()
+                
+                messages.success(request, f'Semester {semester_number} updated successfully!')
+                
+        except Exception as e:
+            messages.error(request, f'Error updating semester: {str(e)}')
+    
+    return redirect('academic_year_management')
+
+@login_required
+def toggle_current_semester(request, semester_id):
+    """Toggle current status of a semester"""
+    semester = get_object_or_404(Semester, id=semester_id)
+    
+    if request.method == 'POST':
+        is_current = request.POST.get('is_current') == 'on'
+        
+        try:
+            with transaction.atomic():
+                if is_current:
+                    # Make all other semesters non-current
+                    Semester.objects.exclude(id=semester_id).update(is_current=False)
+                    # Make the academic year current as well
+                    if not semester.academic_year.is_current:
+                        AcademicYear.objects.filter(is_current=True).update(is_current=False)
+                        semester.academic_year.is_current = True
+                        semester.academic_year.save()
+                
+                semester.is_current = is_current
+                semester.save()
+                
+                status = 'current' if is_current else 'non-current'
+                messages.success(request, f'Semester {semester.semester_number} set as {status}!')
+                
+        except Exception as e:
+            messages.error(request, f'Error updating semester status: {str(e)}')
+    
+    return redirect('academic_year_management')
+
+@login_required
+def delete_semester(request, semester_id):
+    """Delete a semester"""
+    semester = get_object_or_404(Semester, id=semester_id)
+    
+    if request.method == 'POST':
+        try:
+            semester_info = f"Semester {semester.semester_number} for {semester.academic_year.year}"
+            semester.delete()
+            messages.success(request, f'{semester_info} deleted successfully!')
+            
+        except Exception as e:
+            messages.error(request, f'Error deleting semester: {str(e)}')
+    
+    return redirect('academic_year_management')
