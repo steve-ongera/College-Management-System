@@ -3844,3 +3844,137 @@ def student_performance_pdf_data(request, student_id):
         },
         'performance_data': pdf_data
     })
+
+# views.py
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib import messages
+from django.db.models import Q
+from django.core.paginator import Paginator
+from .models import Subject, Course
+from .forms import SubjectForm
+
+def subject_list(request):
+    """List all subjects with filtering options"""
+    subjects = Subject.objects.select_related('course', 'course__department').all()
+    
+    # Get filter parameters
+    course_id = request.GET.get('course')
+    year = request.GET.get('year')
+    semester = request.GET.get('semester')
+    search = request.GET.get('search')
+    
+    # Apply filters
+    if course_id:
+        subjects = subjects.filter(course_id=course_id)
+    
+    if year:
+        subjects = subjects.filter(year=year)
+    
+    if semester:
+        subjects = subjects.filter(semester=semester)
+    
+    if search:
+        subjects = subjects.filter(
+            Q(name__icontains=search) | 
+            Q(code__icontains=search) |
+            Q(course__name__icontains=search)
+        )
+    
+    # Order by course, year, semester
+    subjects = subjects.order_by('course__name', 'year', 'semester', 'name')
+    
+    # Pagination
+    paginator = Paginator(subjects, 20)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    # Get options for filters
+    courses = Course.objects.filter(is_active=True).order_by('name')
+    years = Subject.objects.values_list('year', flat=True).distinct().order_by('year')
+    semesters = Subject.objects.values_list('semester', flat=True).distinct().order_by('semester')
+    
+    context = {
+        'page_obj': page_obj,
+        'courses': courses,
+        'years': years,
+        'semesters': semesters,
+        'current_course': course_id,
+        'current_year': year,
+        'current_semester': semester,
+        'search_query': search,
+    }
+    
+    return render(request, 'subjects/subject_list.html', context)
+
+def subject_detail(request, pk):
+    """Display detailed view of a subject"""
+    subject = get_object_or_404(Subject.objects.select_related('course', 'course__department'), pk=pk)
+    
+    # Get prerequisites and subjects that have this as prerequisite
+    prerequisites = subject.prerequisites.all()
+    required_for = Subject.objects.filter(prerequisites=subject)
+    
+    context = {
+        'subject': subject,
+        'prerequisites': prerequisites,
+        'required_for': required_for,
+    }
+    
+    return render(request, 'subjects/subject_detail.html', context)
+
+def subject_add(request):
+    """Add a new subject"""
+    if request.method == 'POST':
+        form = SubjectForm(request.POST)
+        if form.is_valid():
+            subject = form.save()
+            messages.success(request, f'Subject "{subject.name}" has been added successfully.')
+            return redirect('subject_detail', pk=subject.pk)
+    else:
+        form = SubjectForm()
+    
+    context = {
+        'form': form,
+        'title': 'Add New Subject',
+        'action': 'Add',
+    }
+    
+    return render(request, 'subjects/subject_form.html', context)
+
+def subject_update(request, pk):
+    """Update an existing subject"""
+    subject = get_object_or_404(Subject, pk=pk)
+    
+    if request.method == 'POST':
+        form = SubjectForm(request.POST, instance=subject)
+        if form.is_valid():
+            subject = form.save()
+            messages.success(request, f'Subject "{subject.name}" has been updated successfully.')
+            return redirect('subject_detail', pk=subject.pk)
+    else:
+        form = SubjectForm(instance=subject)
+    
+    context = {
+        'form': form,
+        'subject': subject,
+        'title': f'Update {subject.name}',
+        'action': 'Update',
+    }
+    
+    return render(request, 'subjects/subject_form.html', context)
+
+def subject_delete(request, pk):
+    """Delete a subject"""
+    subject = get_object_or_404(Subject, pk=pk)
+    
+    if request.method == 'POST':
+        subject_name = subject.name
+        subject.delete()
+        messages.success(request, f'Subject "{subject_name}" has been deleted successfully.')
+        return redirect('subject_list')
+    
+    context = {
+        'subject': subject,
+    }
+    
+    return render(request, 'subjects/subject_confirm_delete.html', context)

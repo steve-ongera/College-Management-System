@@ -500,3 +500,81 @@ class CourseForm(forms.ModelForm):
                 )
         
         return cleaned_data
+
+
+# forms.py
+from django import forms
+from .models import Subject, Course
+
+class SubjectForm(forms.ModelForm):
+    class Meta:
+        model = Subject
+        fields = [
+            'name', 'code', 'course', 'year', 'semester', 'credits',
+            'theory_hours', 'practical_hours', 'is_elective', 'is_active',
+            'prerequisites'
+        ]
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Subject Name'}),
+            'code': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Subject Code'}),
+            'course': forms.Select(attrs={'class': 'form-control'}),
+            'year': forms.NumberInput(attrs={'class': 'form-control', 'min': 1, 'max': 5}),
+            'semester': forms.NumberInput(attrs={'class': 'form-control', 'min': 1, 'max': 10}),
+            'credits': forms.NumberInput(attrs={'class': 'form-control', 'min': 1, 'max': 10}),
+            'theory_hours': forms.NumberInput(attrs={'class': 'form-control', 'min': 0}),
+            'practical_hours': forms.NumberInput(attrs={'class': 'form-control', 'min': 0}),
+            'is_elective': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'prerequisites': forms.CheckboxSelectMultiple(),
+        }
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        # Only show active courses
+        self.fields['course'].queryset = Course.objects.filter(is_active=True).order_by('name')
+        
+        # Filter prerequisites to exclude self and inactive subjects
+        if self.instance and self.instance.pk:
+            self.fields['prerequisites'].queryset = Subject.objects.filter(
+                is_active=True
+            ).exclude(pk=self.instance.pk).order_by('course__name', 'year', 'semester', 'name')
+        else:
+            self.fields['prerequisites'].queryset = Subject.objects.filter(
+                is_active=True
+            ).order_by('course__name', 'year', 'semester', 'name')
+    
+    def clean_code(self):
+        code = self.cleaned_data.get('code')
+        if code:
+            code = code.upper()
+            
+            # Check for duplicate codes
+            existing = Subject.objects.filter(code=code)
+            if self.instance and self.instance.pk:
+                existing = existing.exclude(pk=self.instance.pk)
+            
+            if existing.exists():
+                raise forms.ValidationError('A subject with this code already exists.')
+        
+        return code
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        year = cleaned_data.get('year')
+        semester = cleaned_data.get('semester')
+        course = cleaned_data.get('course')
+        
+        # Validate year and semester against course limits
+        if course and year and semester:
+            if year > course.duration_years:
+                raise forms.ValidationError(
+                    f'Year cannot be greater than {course.duration_years} for this course.'
+                )
+            
+            if semester > course.total_semesters:
+                raise forms.ValidationError(
+                    f'Semester cannot be greater than {course.total_semesters} for this course.'
+                )
+        
+        return cleaned_data

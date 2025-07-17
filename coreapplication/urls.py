@@ -127,4 +127,10 @@ urlpatterns = [
     path('student-performance/<str:student_id>/', views.student_performance_view, name='student_performance'),
     path('student-performance-pdf/<str:student_id>/', views.student_performance_pdf_data, name='student_performance_pdf_data'),
 
+    path('admin-subjects/', views.subject_list, name='subject_list'),
+    path('subjects/add/', views.subject_add, name='subject_add'),
+    path('subjects/<int:pk>/', views.subject_detail, name='subject_detail'),
+    path('subjects/<int:pk>/edit/', views.subject_update, name='subject_update'),
+    path('subjects/<int:pk>/delete/', views.subject_delete, name='subject_delete'),
+
  ]
