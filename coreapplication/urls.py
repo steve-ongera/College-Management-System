@@ -123,4 +123,8 @@ urlpatterns = [
     path('courses/<int:course_id>/delete/', views.delete_course_view, name='delete_course'),
     path('courses/check_code/', views.check_course_code, name='check_course_code'),
 
+    # Student Performance URLs
+    path('student-performance/<str:student_id>/', views.student_performance_view, name='student_performance'),
+    path('student-performance-pdf/<str:student_id>/', views.student_performance_pdf_data, name='student_performance_pdf_data'),
+
  ]
