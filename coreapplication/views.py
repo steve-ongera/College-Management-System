@@ -2625,6 +2625,16 @@ def student_detail(request, student_id):
     
     return render(request, 'admin/students/student_detail.html', context)
 
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.db import transaction
+from django.http import JsonResponse
+from django.core.exceptions import ValidationError
+import logging
+
+logger = logging.getLogger(__name__)
+
 @login_required
 @transaction.atomic
 def student_create(request):
@@ -2633,23 +2643,57 @@ def student_create(request):
         user_form = UserForm(request.POST, request.FILES)
         student_form = StudentForm(request.POST)
         
-        if user_form.is_valid() and student_form.is_valid():
+        # Debug: Print form data
+        print("POST data:", request.POST)
+        print("FILES data:", request.FILES)
+        
+        # Check if both forms are valid
+        user_form_valid = user_form.is_valid()
+        student_form_valid = student_form.is_valid()
+        
+        # Debug: Print form errors
+        if not user_form_valid:
+            print("User form errors:", user_form.errors)
+        if not student_form_valid:
+            print("Student form errors:", student_form.errors)
+        
+        if user_form_valid and student_form_valid:
             try:
                 # Create user first
                 user = user_form.save(commit=False)
                 user.user_type = 'student'
+                user.is_active = True  # Make sure user is active
                 user.save()
+                
+                print(f"User created: {user.username} (ID: {user.id})")
                 
                 # Create student profile
                 student = student_form.save(commit=False)
                 student.user = user
                 student.save()
                 
+                print(f"Student created: {student.student_id} (ID: {student.id})")
+                
                 messages.success(request, f'Student {student.student_id} created successfully!')
                 return redirect('student_detail', student_id=student.student_id)
                 
             except Exception as e:
+                logger.error(f'Error creating student: {str(e)}')
+                print(f"Exception occurred: {str(e)}")
                 messages.error(request, f'Error creating student: {str(e)}')
+                # Rollback will happen automatically due to @transaction.atomic
+        else:
+            # Add form errors to messages
+            if user_form.errors:
+                for field, errors in user_form.errors.items():
+                    for error in errors:
+                        messages.error(request, f"User {field}: {error}")
+            
+            if student_form.errors:
+                for field, errors in student_form.errors.items():
+                    for error in errors:
+                        messages.error(request, f"Student {field}: {error}")
+    
     else:
         user_form = UserForm()
         student_form = StudentForm()

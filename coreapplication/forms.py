@@ -310,20 +310,42 @@ class AdminBookingFilterForm(forms.Form):
     
 
 # forms.py
+# Updated forms.py
+# Updated forms.py
 from django import forms
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
+from django.contrib.auth.validators import UnicodeUsernameValidator
 from .models import Student, Course
+import re
 
 User = get_user_model()
+
+class CustomUsernameValidator:
+    """Custom validator that allows more characters in username including forward slashes"""
+    
+    def __call__(self, value):
+        # Allow letters, numbers, and these special characters: @/./+/-/_ and forward slash
+        pattern = r'^[\w.@+\-/]+$'  # Fixed: Added closing quote and $ anchor
+        
+        if not re.match(pattern, value):
+            raise ValidationError(
+                "Username can only contain letters, numbers, and the characters @/./+/-/_",
+                code='invalid_username'
+            )
+        return value
 
 class UserForm(forms.ModelForm):
     password = forms.CharField(
         widget=forms.PasswordInput(attrs={'class': 'form-control'}),
-        required=True
+        required=True,
+        min_length=4,  # Allow simple passwords
+        help_text="Enter a simple password (minimum 4 characters)"
     )
     confirm_password = forms.CharField(
         widget=forms.PasswordInput(attrs={'class': 'form-control'}),
-        required=True
+        required=True,
+        help_text="Confirm your password"
     )
 
     class Meta:
@@ -333,10 +355,9 @@ class UserForm(forms.ModelForm):
             'phone', 'address', 'gender', 'date_of_birth', 'profile_picture'
         ]
         widgets = {
-            'username': forms.TextInput(attrs={'class': 'form-control'}),
-            'email': forms.EmailInput(attrs={'class': 'form-control'}),
-            'first_name': forms.TextInput(attrs={'class': 'form-control'}),
-            'last_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'email': forms.EmailInput(attrs={'class': 'form-control', 'required': True}),
+            'first_name': forms.TextInput(attrs={'class': 'form-control', 'required': True}),
+            'last_name': forms.TextInput(attrs={'class': 'form-control', 'required': True}),
             'phone': forms.TextInput(attrs={'class': 'form-control'}),
             'gender': forms.Select(attrs={'class': 'form-control'}),
             'date_of_birth': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
@@ -344,19 +365,71 @@ class UserForm(forms.ModelForm):
             'profile_picture': forms.ClearableFileInput(attrs={'class': 'form-control'}),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        # Completely override the username field to remove default validators
+        self.fields['username'] = forms.CharField(
+            max_length=150,
+            validators=[CustomUsernameValidator()],
+            widget=forms.TextInput(attrs={'class': 'form-control', 'required': True}),
+            help_text="Username can contain letters, numbers, and @/./+/-/_ characters including forward slashes"
+        )
+        
+        # Make required fields explicit
+        self.fields['username'].required = True
+        self.fields['email'].required = True
+        self.fields['first_name'].required = True
+        self.fields['last_name'].required = True
+        self.fields['password'].required = True
+        self.fields['confirm_password'].required = True
+
+    def clean_username(self):
+        username = self.cleaned_data.get('username')
+        if username:
+            # Check for existing username, excluding current instance if editing
+            if self.instance and self.instance.pk:
+                if User.objects.filter(username=username).exclude(pk=self.instance.pk).exists():
+                    raise ValidationError("Username already exists. Please choose a different username.")
+            else:
+                if User.objects.filter(username=username).exists():
+                    raise ValidationError("Username already exists. Please choose a different username.")
+        return username
+
+    def clean_email(self):
+        email = self.cleaned_data.get('email')
+        if email:
+            # Check for existing email, excluding current instance if editing
+            if self.instance and self.instance.pk:
+                if User.objects.filter(email=email).exclude(pk=self.instance.pk).exists():
+                    raise ValidationError("Email already exists. Please use a different email.")
+            else:
+                if User.objects.filter(email=email).exists():
+                    raise ValidationError("Email already exists. Please use a different email.")
+        return email
+
     def clean(self):
         cleaned_data = super().clean()
         password = cleaned_data.get('password')
         confirm_password = cleaned_data.get('confirm_password')
 
-        if password and confirm_password and password != confirm_password:
-            raise forms.ValidationError("Passwords don't match")
+        if password and confirm_password:
+            if password != confirm_password:
+                raise ValidationError("Passwords don't match")
+            
+            # Allow simple passwords for development
+            if len(password) < 4:
+                raise ValidationError("Password must be at least 4 characters long")
 
         return cleaned_data
 
     def save(self, commit=True):
         user = super().save(commit=False)
-        user.set_password(self.cleaned_data['password'])
+        # Set the password properly
+        password = self.cleaned_data.get('password')
+        if password:
+            user.set_password(password)
+        
         if commit:
             user.save()
         return user
@@ -371,10 +444,11 @@ class StudentForm(forms.ModelForm):
             'guardian_phone', 'guardian_relation', 'emergency_contact', 'blood_group'
         ]
         widgets = {
+            'student_id': forms.TextInput(attrs={'class': 'form-control', 'required': True}),
             'admission_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
             'course': forms.Select(attrs={'class': 'form-control'}),
-            'current_semester': forms.NumberInput(attrs={'class': 'form-control'}),
-            'current_year': forms.NumberInput(attrs={'class': 'form-control'}),
+            'current_semester': forms.NumberInput(attrs={'class': 'form-control', 'min': 1, 'max': 8}),
+            'current_year': forms.NumberInput(attrs={'class': 'form-control', 'min': 1, 'max': 4}),
             'admission_type': forms.Select(attrs={'class': 'form-control'}),
             'status': forms.Select(attrs={'class': 'form-control'}),
             'guardian_name': forms.TextInput(attrs={'class': 'form-control'}),
@@ -382,23 +456,33 @@ class StudentForm(forms.ModelForm):
             'guardian_relation': forms.TextInput(attrs={'class': 'form-control'}),
             'emergency_contact': forms.TextInput(attrs={'class': 'form-control'}),
             'blood_group': forms.TextInput(attrs={'class': 'form-control'}),
-            'student_id': forms.TextInput(attrs={'class': 'form-control'}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['course'].queryset = Course.objects.filter(is_active=True)
+        # Make sure course queryset is available
+        if Course.objects.exists():
+            self.fields['course'].queryset = Course.objects.filter(is_active=True)
+        else:
+            self.fields['course'].queryset = Course.objects.all()
+        
+        # Make required fields explicit
+        self.fields['student_id'].required = True
+        self.fields['course'].required = True
 
     def clean_student_id(self):
         student_id = self.cleaned_data.get('student_id')
-        if self.instance.pk:
+        if not student_id:
+            raise ValidationError("Student ID is required")
+        
+        # Check for duplicate student ID
+        if self.instance and self.instance.pk:
             if Student.objects.filter(student_id=student_id).exclude(pk=self.instance.pk).exists():
-                raise forms.ValidationError("Student ID already exists")
+                raise ValidationError("Student ID already exists")
         else:
             if Student.objects.filter(student_id=student_id).exists():
-                raise forms.ValidationError("Student ID already exists")
+                raise ValidationError("Student ID already exists")
         return student_id
-
 
 # forms.py
 from django import forms

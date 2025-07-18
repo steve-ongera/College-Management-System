@@ -3,6 +3,8 @@ from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone
 import uuid
+from django.contrib.auth.models import AbstractUser
+from django.core.validators import MinValueValidator, MaxValueValidator, RegexValidator
 
 # Custom User Model
 class User(AbstractUser):
@@ -16,6 +18,18 @@ class User(AbstractUser):
         ('student', 'Student'),
         ('faculty', 'Faculty'),
         ('staff', 'Staff'),
+    )
+
+    username = models.CharField(
+        max_length=150,
+        unique=True,
+        validators=[
+            RegexValidator(
+                regex=r'^[\w.@+\-/]+$',
+                message="Username can contain letters, numbers, @, ., +, -, _, and / characters only."
+            )
+        ],
+        help_text="Required. 150 characters or fewer. Letters, digits and @/./+/-/_/ allowed."
     )
     
     user_type = models.CharField(max_length=20, choices=USER_TYPES)

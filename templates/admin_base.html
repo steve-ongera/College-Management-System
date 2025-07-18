@@ -119,262 +119,323 @@
     </nav>
     <!--  -->
     <!-- Sidenav -->
-    <nav class="sidenav">
-        <ul class="menu">
-            <li class="menu-link active" id="dashboard">
-                <a class="menu_sub" href="{% url 'admin_dashboard'%}"> <i class="ri-dashboard-line"></i> <span>Dashboard</span></a>
+    <nav class="sidenav" >
+        <ul class="menu" style="padding-left: 0; margin: 0; list-style: none;">
+            <li class="menu-link active" id="dashboard" style="margin-bottom: 2px;">
+                <a class="menu_sub" href="{% url 'admin_dashboard'%}" style="display: flex; align-items: center; padding: 10px 15px;  text-decoration: none; border-radius: 4px;">
+                    <i class="ri-dashboard-line" style="margin-right: 10px; font-size: 16px;"></i> 
+                    <span style="white-space: nowrap;">Dashboard</span>
+                </a>
             </li>
             
             <!-- User Management -->
-            <li class="menu-link" id="user-management">
-                <a href="javascript:void(0);" class="menu_sub">
-                    <i class="ri-user-settings-line"></i>
-                    <span>User Management</span>
-                    <i class="dropdown-caret ri-arrow-right-s-line"></i>
+            <li class="menu-link" id="user-management" style="margin-bottom: 2px;">
+                <a href="javascript:void(0);" class="menu_sub" style="display: flex; align-items: center; padding: 10px 15px;  text-decoration: none; border-radius: 4px;">
+                    <i class="ri-user-settings-line" style="margin-right: 10px; font-size: 16px;"></i>
+                    <span style="white-space: nowrap;">Users</span>
+                    <i class="dropdown-caret ri-arrow-right-s-line" style="margin-left: auto;"></i>
                 </a>
-                <ul>
-                    <li class="sub-item">
-                        <a id="students" href="{% url 'student_list'%}">Students</a>
+                <ul style="padding-left: 15px; margin: 0; list-style: none; display: none;">
+                    <li class="sub-item" style="margin-top: 2px;">
+                        <a id="students" href="{% url 'student_list'%}" style="display: block; padding: 8px 15px;  text-decoration: none; border-radius: 4px; font-size: 14px;">Students</a>
                     </li>
-                    <li class="sub-item">
-                        <a id="faculty" href="{% url 'faculty_list'%}">Faculty</a>
+                    <li class="sub-item" style="margin-top: 2px;">
+                        <a id="faculty" href="{% url 'faculty_list'%}" style="display: block; padding: 8px 15px;  text-decoration: none; border-radius: 4px; font-size: 14px;">Faculty</a>
                     </li>
-                    <li class="sub-item">
-                        <a id="staff" href="#">Staff</a>
+                    <li class="sub-item" style="margin-top: 2px;">
+                        <a id="staff" href="#" style="display: block; padding: 8px 15px;  text-decoration: none; border-radius: 4px; font-size: 14px;">Staff</a>
                     </li>
-                    <li class="sub-item">
-                        <a id="admins" href="#">Admins</a>
+                    <li class="sub-item" style="margin-top: 2px;">
+                        <a id="admins" href="#" style="display: block; padding: 8px 15px;  text-decoration: none; border-radius: 4px; font-size: 14px;">Admins</a>
                     </li>
                 </ul>
             </li>
             
             <!-- Academic Management -->
-            <li class="menu-link" id="academic-management">
-                <a href="javascript:void(0);" class="menu_sub">
-                    <i class="ri-book-open-line"></i>
-                    <span>Academic Management</span>
-                    <i class="dropdown-caret ri-arrow-right-s-line"></i>
+            <li class="menu-link" id="academic-management" style="margin-bottom: 2px;">
+                <a href="javascript:void(0);" class="menu_sub" style="display: flex; align-items: center; padding: 10px 15px;  text-decoration: none; border-radius: 4px;">
+                    <i class="ri-book-open-line" style="margin-right: 10px; font-size: 16px;"></i>
+                    <span style="white-space: nowrap;">Academics</span>
+                    <i class="dropdown-caret ri-arrow-right-s-line" style="margin-left: auto;"></i>
                 </a>
-                <ul>
-                    <li class="sub-item">
-                        <a id="departments" href="#">Departments</a>
+                <ul style="padding-left: 15px; margin: 0; list-style: none; display: none;">
+                    <li class="sub-item" style="margin-top: 2px;">
+                        <a id="departments" href="#" style="display: block; padding: 8px 15px;  text-decoration: none; border-radius: 4px; font-size: 14px;">Depts</a>
                     </li>
-                    <li class="sub-item">
-                        <a id="courses" href="{% url 'course_list'%}">Courses</a>
+                    <li class="sub-item" style="margin-top: 2px;">
+                        <a id="courses" href="{% url 'course_list'%}" style="display: block; padding: 8px 15px;  text-decoration: none; border-radius: 4px; font-size: 14px;">Courses</a>
                     </li>
-                    <li class="sub-item">
-                        <a id="subjects" href="{% url 'subject_list'%}">Subjects</a>
+                    <li class="sub-item" style="margin-top: 2px;">
+                        <a id="subjects" href="{% url 'subject_list'%}" style="display: block; padding: 8px 15px;  text-decoration: none; border-radius: 4px; font-size: 14px;">Subjects</a>
                     </li>
-                    <li class="sub-item">
-                        <a id="academic-years" href="{% url 'academic_year_management'%}">Academic Years</a>
+                    <li class="sub-item" style="margin-top: 2px;">
+                        <a id="academic-years" href="{% url 'academic_year_management'%}" style="display: block; padding: 8px 15px;  text-decoration: none; border-radius: 4px; font-size: 14px;">Years</a>
                     </li>
-                    <li class="sub-item">
-                        <a id="semesters" href="#">Semesters</a>
+                    <li class="sub-item" style="margin-top: 2px;">
+                        <a id="semesters" href="#" style="display: block; padding: 8px 15px;  text-decoration: none; border-radius: 4px; font-size: 14px;">Semesters</a>
                     </li>
                 </ul>
             </li>
             
             <!-- Student Management -->
-            <li class="menu-link" id="student-management">
-                <a href="javascript:void(0);" class="menu_sub">
-                    <i class="ri-group-line"></i>
-                    <span>Student Management</span>
-                    <i class="dropdown-caret ri-arrow-right-s-line"></i>
+            <li class="menu-link" id="student-management" style="margin-bottom: 2px;">
+                <a href="javascript:void(0);" class="menu_sub" style="display: flex; align-items: center; padding: 10px 15px;  text-decoration: none; border-radius: 4px;">
+                    <i class="ri-group-line" style="margin-right: 10px; font-size: 16px;"></i>
+                    <span style="white-space: nowrap;">Students</span>
+                    <i class="dropdown-caret ri-arrow-right-s-line" style="margin-left: auto;"></i>
                 </a>
-                <ul>
-                    <li class="sub-item">
-                        <a id="enrollments" href="#">Enrollments</a>
+                <ul style="padding-left: 15px; margin: 0; list-style: none; display: none;">
+                    <li class="sub-item" style="margin-top: 2px;">
+                        <a id="enrollments" href="#" style="display: block; padding: 8px 15px;  text-decoration: none; border-radius: 4px; font-size: 14px;">Enrollments</a>
                     </li>
-                    <li class="sub-item">
-                        <a id="attendance" href="#">Attendance</a>
+                    <li class="sub-item" style="margin-top: 2px;">
+                        <a id="attendance" href="#" style="display: block; padding: 8px 15px;  text-decoration: none; border-radius: 4px; font-size: 14px;">Attendance</a>
                     </li>
-                    <li class="sub-item">
-                        <a id="grades" href="#">Grades</a>
+                    <li class="sub-item" style="margin-top: 2px;">
+                        <a id="grades" href="#" style="display: block; padding: 8px 15px;  text-decoration: none; border-radius: 4px; font-size: 14px;">Grades</a>
                     </li>
-                    <li class="sub-item">
-                        <a id="reporting" href="#">Student Reporting</a>
+                    <li class="sub-item" style="margin-top: 2px;">
+                        <a id="reporting" href="#" style="display: block; padding: 8px 15px;  text-decoration: none; border-radius: 4px; font-size: 14px;">Reporting</a>
                     </li>
                 </ul>
             </li>
             
             <!-- Timetable Management -->
-            <li class="menu-link" id="timetable-management">
-                <a href="javascript:void(0);" class="menu_sub">
-                    <i class="ri-calendar-line"></i>
-                    <span>Timetable Management</span>
-                    <i class="dropdown-caret ri-arrow-right-s-line"></i>
+            <li class="menu-link" id="timetable-management" style="margin-bottom: 2px;">
+                <a href="javascript:void(0);" class="menu_sub" style="display: flex; align-items: center; padding: 10px 15px;  text-decoration: none; border-radius: 4px;">
+                    <i class="ri-calendar-line" style="margin-right: 10px; font-size: 16px;"></i>
+                    <span style="white-space: nowrap;">Timetable</span>
+                    <i class="dropdown-caret ri-arrow-right-s-line" style="margin-left: auto;"></i>
                 </a>
-                <ul>
-                    <li class="sub-item">
-                        <a id="classrooms" href="#">Classrooms</a>
+                <ul style="padding-left: 15px; margin: 0; list-style: none; display: none;">
+                    <li class="sub-item" style="margin-top: 2px;">
+                        <a id="classrooms" href="#" style="display: block; padding: 8px 15px;  text-decoration: none; border-radius: 4px; font-size: 14px;">Classrooms</a>
                     </li>
-                    <li class="sub-item">
-                        <a id="time-slots" href="#">Time Slots</a>
+                    <li class="sub-item" style="margin-top: 2px;">
+                        <a id="time-slots" href="#" style="display: block; padding: 8px 15px;  text-decoration: none; border-radius: 4px; font-size: 14px;">Time Slots</a>
                     </li>
-                    <li class="sub-item">
-                        <a id="schedules" href="{% url 'schedule_list'%}">Schedules</a>
+                    <li class="sub-item" style="margin-top: 2px;">
+                        <a id="schedules" href="{% url 'schedule_list'%}" style="display: block; padding: 8px 15px;  text-decoration: none; border-radius: 4px; font-size: 14px;">Schedules</a>
                     </li>
                 </ul>
             </li>
             
             <!-- Examination Management -->
-            <li class="menu-link" id="exam-management">
-                <a href="javascript:void(0);" class="menu_sub">
-                    <i class="ri-file-list-line"></i>
-                    <span>Examination</span>
-                    <i class="dropdown-caret ri-arrow-right-s-line"></i>
+            <li class="menu-link" id="exam-management" style="margin-bottom: 2px;">
+                <a href="javascript:void(0);" class="menu_sub" style="display: flex; align-items: center; padding: 10px 15px;  text-decoration: none; border-radius: 4px;">
+                    <i class="ri-file-list-line" style="margin-right: 10px; font-size: 16px;"></i>
+                    <span style="white-space: nowrap;">Exams</span>
+                    <i class="dropdown-caret ri-arrow-right-s-line" style="margin-left: auto;"></i>
                 </a>
-                <ul>
-                    <li class="sub-item">
-                        <a id="exams" href="{% url 'admin_marks_entry'%}">Marks entry</a>
+                <ul style="padding-left: 15px; margin: 0; list-style: none; display: none;">
+                    <li class="sub-item" style="margin-top: 2px;">
+                        <a id="exams" href="{% url 'admin_marks_entry'%}" style="display: block; padding: 8px 15px;  text-decoration: none; border-radius: 4px; font-size: 14px;">Marks</a>
                     </li>
-                    <li class="sub-item">
-                        <a id="exam-schedules" href="#">Exam Schedules</a>
+                    <li class="sub-item" style="margin-top: 2px;">
+                        <a id="exam-schedules" href="#" style="display: block; padding: 8px 15px;  text-decoration: none; border-radius: 4px; font-size: 14px;">Schedules</a>
                     </li>
-                    <li class="sub-item">
-                        <a id="results" href="#">Results</a>
+                    <li class="sub-item" style="margin-top: 2px;">
+                        <a id="results" href="#" style="display: block; padding: 8px 15px;  text-decoration: none; border-radius: 4px; font-size: 14px;">Results</a>
                     </li>
                 </ul>
             </li>
             
             <!-- Financial Management -->
-            <li class="menu-link" id="financial-management">
-                <a href="javascript:void(0);" class="menu_sub">
-                    <i class="ri-money-dollar-circle-line"></i>
-                    <span>Financial Management</span>
-                    <i class="dropdown-caret ri-arrow-right-s-line"></i>
+            <li class="menu-link" id="financial-management" style="margin-bottom: 2px;">
+                <a href="javascript:void(0);" class="menu_sub" style="display: flex; align-items: center; padding: 10px 15px;  text-decoration: none; border-radius: 4px;">
+                    <i class="ri-money-dollar-circle-line" style="margin-right: 10px; font-size: 16px;"></i>
+                    <span style="white-space: nowrap;">Finance</span>
+                    <i class="dropdown-caret ri-arrow-right-s-line" style="margin-left: auto;"></i>
                 </a>
-                <ul>
-                    <li class="sub-item">
-                        <a id="fee-structures" href="#">Fee Structures</a>
+                <ul style="padding-left: 15px; margin: 0; list-style: none; display: none;">
+                    <li class="sub-item" style="margin-top: 2px;">
+                        <a id="fee-structures" href="#" style="display: block; padding: 8px 15px;  text-decoration: none; border-radius: 4px; font-size: 14px;">Fees</a>
                     </li>
-                    <li class="sub-item">
-                        <a id="fee-payments" href="#">Fee Payments</a>
+                    <li class="sub-item" style="margin-top: 2px;">
+                        <a id="fee-payments" href="#" style="display: block; padding: 8px 15px;  text-decoration: none; border-radius: 4px; font-size: 14px;">Payments</a>
                     </li>
-                    <li class="sub-item">
-                        <a id="hostel-fees" href="#">Hostel Fees</a>
+                    <li class="sub-item" style="margin-top: 2px;">
+                        <a id="hostel-fees" href="#" style="display: block; padding: 8px 15px;  text-decoration: none; border-radius: 4px; font-size: 14px;">Hostel Fees</a>
                     </li>
                 </ul>
             </li>
             
             <!-- Hostel Management -->
-            <li class="menu-link" id="hostel-management">
-                <a href="javascript:void(0);" class="menu_sub">
-                    <i class="ri-home-4-line"></i>
-                    <span>Hostel Management</span>
-                    <i class="dropdown-caret ri-arrow-right-s-line"></i>
+            <li class="menu-link" id="hostel-management" style="margin-bottom: 2px;">
+                <a href="javascript:void(0);" class="menu_sub" style="display: flex; align-items: center; padding: 10px 15px;  text-decoration: none; border-radius: 4px;">
+                    <i class="ri-home-4-line" style="margin-right: 10px; font-size: 16px;"></i>
+                    <span style="white-space: nowrap;">Hostel</span>
+                    <i class="dropdown-caret ri-arrow-right-s-line" style="margin-left: auto;"></i>
                 </a>
-                <ul>
-                    <li class="sub-item">
-                        <a id="hostels" href="#">Hostels</a>
+                <ul style="padding-left: 15px; margin: 0; list-style: none; display: none;">
+                    <li class="sub-item" style="margin-top: 2px;">
+                        <a id="hostels" href="#" style="display: block; padding: 8px 15px;  text-decoration: none; border-radius: 4px; font-size: 14px;">Hostels</a>
                     </li>
-                    <li class="sub-item">
-                        <a id="hostel-rooms" href="#">Rooms</a>
+                    <li class="sub-item" style="margin-top: 2px;">
+                        <a id="hostel-rooms" href="#" style="display: block; padding: 8px 15px;  text-decoration: none; border-radius: 4px; font-size: 14px;">Rooms</a>
                     </li>
-                    <li class="sub-item">
-                        <a id="hostel-bookings" href="#">Bookings</a>
+                    <li class="sub-item" style="margin-top: 2px;">
+                        <a id="hostel-bookings" href="#" style="display: block; padding: 8px 15px;  text-decoration: none; border-radius: 4px; font-size: 14px;">Bookings</a>
                     </li>
                 </ul>
             </li>
             
             <!-- Library Management -->
-            <li class="menu-link" id="library-management">
-                <a href="javascript:void(0);" class="menu_sub">
-                    <i class="ri-book-2-line"></i>
-                    <span>Library Management</span>
-                    <i class="dropdown-caret ri-arrow-right-s-line"></i>
+            <li class="menu-link" id="library-management" style="margin-bottom: 2px;">
+                <a href="javascript:void(0);" class="menu_sub" style="display: flex; align-items: center; padding: 10px 15px;  text-decoration: none; border-radius: 4px;">
+                    <i class="ri-book-2-line" style="margin-right: 10px; font-size: 16px;"></i>
+                    <span style="white-space: nowrap;">Library</span>
+                    <i class="dropdown-caret ri-arrow-right-s-line" style="margin-left: auto;"></i>
                 </a>
-                <ul>
-                    <li class="sub-item">
-                        <a id="books" href="#">Books</a>
+                <ul style="padding-left: 15px; margin: 0; list-style: none; display: none;">
+                    <li class="sub-item" style="margin-top: 2px;">
+                        <a id="books" href="#" style="display: block; padding: 8px 15px;  text-decoration: none; border-radius: 4px; font-size: 14px;">Books</a>
                     </li>
-                    <li class="sub-item">
-                        <a id="book-issues" href="#">Book Issues</a>
+                    <li class="sub-item" style="margin-top: 2px;">
+                        <a id="book-issues" href="#" style="display: block; padding: 8px 15px;  text-decoration: none; border-radius: 4px; font-size: 14px;">Issues</a>
                     </li>
                 </ul>
             </li>
             
             <!-- Event Management -->
-            <li class="menu-link" id="event-management">
-                <a href="javascript:void(0);" class="menu_sub">
-                    <i class="ri-calendar-event-line"></i>
-                    <span>Event Management</span>
-                    <i class="dropdown-caret ri-arrow-right-s-line"></i>
+            <li class="menu-link" id="event-management" style="margin-bottom: 2px;">
+                <a href="javascript:void(0);" class="menu_sub" style="display: flex; align-items: center; padding: 10px 15px;  text-decoration: none; border-radius: 4px;">
+                    <i class="ri-calendar-event-line" style="margin-right: 10px; font-size: 16px;"></i>
+                    <span style="white-space: nowrap;">Events</span>
+                    <i class="dropdown-caret ri-arrow-right-s-line" style="margin-left: auto;"></i>
                 </a>
-                <ul>
-                    <li class="sub-item">
-                        <a id="events" href="#">Events</a>
+                <ul style="padding-left: 15px; margin: 0; list-style: none; display: none;">
+                    <li class="sub-item" style="margin-top: 2px;">
+                        <a id="events" href="#" style="display: block; padding: 8px 15px;  text-decoration: none; border-radius: 4px; font-size: 14px;">Events</a>
                     </li>
-                    <li class="sub-item">
-                        <a id="clubs" href="#">Clubs</a>
+                    <li class="sub-item" style="margin-top: 2px;">
+                        <a id="clubs" href="#" style="display: block; padding: 8px 15px;  text-decoration: none; border-radius: 4px; font-size: 14px;">Clubs</a>
                     </li>
-                    <li class="sub-item">
-                        <a id="club-events" href="#">Club Events</a>
+                    <li class="sub-item" style="margin-top: 2px;">
+                        <a id="club-events" href="#" style="display: block; padding: 8px 15px;  text-decoration: none; border-radius: 4px; font-size: 14px;">Club Events</a>
                     </li>
                 </ul>
             </li>
             
             <!-- Placement Management -->
-            <li class="menu-link" id="placement-management">
-                <a href="javascript:void(0);" class="menu_sub">
-                    <i class="ri-briefcase-line"></i>
-                    <span>Placement</span>
-                    <i class="dropdown-caret ri-arrow-right-s-line"></i>
+            <li class="menu-link" id="placement-management" style="margin-bottom: 2px;">
+                <a href="javascript:void(0);" class="menu_sub" style="display: flex; align-items: center; padding: 10px 15px;  text-decoration: none; border-radius: 4px;">
+                    <i class="ri-briefcase-line" style="margin-right: 10px; font-size: 16px;"></i>
+                    <span style="white-space: nowrap;">Placement</span>
+                    <i class="dropdown-caret ri-arrow-right-s-line" style="margin-left: auto;"></i>
                 </a>
-                <ul>
-                    <li class="sub-item">
-                        <a id="companies" href="#">Companies</a>
+                <ul style="padding-left: 15px; margin: 0; list-style: none; display: none;">
+                    <li class="sub-item" style="margin-top: 2px;">
+                        <a id="companies" href="#" style="display: block; padding: 8px 15px;  text-decoration: none; border-radius: 4px; font-size: 14px;">Companies</a>
                     </li>
-                    <li class="sub-item">
-                        <a id="placement-drives" href="#">Placement Drives</a>
+                    <li class="sub-item" style="margin-top: 2px;">
+                        <a id="placement-drives" href="#" style="display: block; padding: 8px 15px;  text-decoration: none; border-radius: 4px; font-size: 14px;">Drives</a>
                     </li>
-                    <li class="sub-item">
-                        <a id="placement-applications" href="#">Applications</a>
+                    <li class="sub-item" style="margin-top: 2px;">
+                        <a id="placement-applications" href="#" style="display: block; padding: 8px 15px;  text-decoration: none; border-radius: 4px; font-size: 14px;">Applications</a>
                     </li>
                 </ul>
             </li>
             
             <!-- System Management -->
-            <li class="menu-link" id="system-management">
-                <a href="javascript:void(0);" class="menu_sub">
-                    <i class="ri-settings-3-line"></i>
-                    <span>System Management</span>
-                    <i class="dropdown-caret ri-arrow-right-s-line"></i>
+            <li class="menu-link" id="system-management" style="margin-bottom: 2px;">
+                <a href="javascript:void(0);" class="menu_sub" style="display: flex; align-items: center; padding: 10px 15px;  text-decoration: none; border-radius: 4px;">
+                    <i class="ri-settings-3-line" style="margin-right: 10px; font-size: 16px;"></i>
+                    <span style="white-space: nowrap;">System</span>
+                    <i class="dropdown-caret ri-arrow-right-s-line" style="margin-left: auto;"></i>
                 </a>
-                <ul>
-                    <li class="sub-item">
-                        <a id="notifications" href="#">Notifications</a>
+                <ul style="padding-left: 15px; margin: 0; list-style: none; display: none;">
+                    <li class="sub-item" style="margin-top: 2px;">
+                        <a id="notifications" href="#" style="display: block; padding: 8px 15px;  text-decoration: none; border-radius: 4px; font-size: 14px;">Notifications</a>
                     </li>
-                    <li class="sub-item">
-                        <a id="news" href="#">News</a>
+                    <li class="sub-item" style="margin-top: 2px;">
+                        <a id="news" href="#" style="display: block; padding: 8px 15px;  text-decoration: none; border-radius: 4px; font-size: 14px;">News</a>
                     </li>
-                    <li class="sub-item">
-                        <a id="faqs" href="#">FAQs</a>
+                    <li class="sub-item" style="margin-top: 2px;">
+                        <a id="faqs" href="#" style="display: block; padding: 8px 15px;  text-decoration: none; border-radius: 4px; font-size: 14px;">FAQs</a>
                     </li>
-                    <li class="sub-item">
-                        <a id="student-comments" href="#">Student Comments</a>
+                    <li class="sub-item" style="margin-top: 2px;">
+                        <a id="student-comments" href="#" style="display: block; padding: 8px 15px;  text-decoration: none; border-radius: 4px; font-size: 14px;">Comments</a>
                     </li>
                 </ul>
             </li>
             
             <!-- Reports -->
-            <li class="menu-link" id="reports">
-                <a class="menu_sub" href="#">
-                    <i class="ri-file-chart-line"></i>
-                    <span>Reports</span>
+            <li class="menu-link" id="reports" style="margin-bottom: 2px;">
+                <a class="menu_sub" href="#" style="display: flex; align-items: center; padding: 10px 15px;  text-decoration: none; border-radius: 4px;">
+                    <i class="ri-file-chart-line" style="margin-right: 10px; font-size: 16px;"></i>
+                    <span style="white-space: nowrap;">Reports</span>
                 </a>
             </li>
         </ul>
-        <div class="brand-footer">
-            <span>©2025 - kencom Softwares ltd</span>
+        <div class="brand-footer" style="padding: 15px; text-align: center; font-size: 12px; color: #666;">
+            <span>©2025 - kencom Softwares</span>
         </div>
     </nav>
     <!-- #end sidenav  -->
 
-    <main role="main" class="pb-3">
-        {% block content %}
-        {% endblock %}
-    </main>
+    <script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Get all menu items with dropdowns
+    const menuLinks = document.querySelectorAll('.menu-link > a.menu_sub');
+    
+    menuLinks.forEach(link => {
+        // Skip if it's a direct link (no dropdown)
+        if (!link.nextElementSibling || !link.nextElementSibling.tagName === 'UL') return;
+        
+        // Add click handler for dropdown toggle
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            // Get the dropdown menu
+            const dropdown = this.nextElementSibling;
+            const caret = this.querySelector('.dropdown-caret');
+            
+            // Toggle the dropdown
+            if (dropdown.style.display === 'block') {
+                dropdown.style.display = 'none';
+                if (caret) caret.style.transform = 'rotate(0deg)';
+            } else {
+                dropdown.style.display = 'block';
+                if (caret) caret.style.transform = 'rotate(90deg)';
+            }
+            
+            // Close other open dropdowns
+            document.querySelectorAll('.menu-link ul').forEach(menu => {
+                if (menu !== dropdown && menu.style.display === 'block') {
+                    menu.style.display = 'none';
+                    const otherCaret = menu.previousElementSibling.querySelector('.dropdown-caret');
+                    if (otherCaret) otherCaret.style.transform = 'rotate(0deg)';
+                }
+            });
+        });
+    });
+
+    // Make the active menu's dropdown open by default
+    const activeMenu = document.querySelector('.menu-link.active');
+    if (activeMenu) {
+        const dropdown = activeMenu.querySelector('ul');
+        if (dropdown) dropdown.style.display = 'block';
+        const caret = activeMenu.querySelector('.dropdown-caret');
+        if (caret) caret.style.transform = 'rotate(90deg)';
+    }
+});
+</script>
+
+<style>
+/* Add these styles to your existing CSS */
+.dropdown-caret {
+    transition: transform 0.2s ease;
+}
+.menu-link ul {
+    transition: all 0.3s ease;
+}
+</style>
+
+    <main role="main" class="pb-3" style=" font-size: 13px !important;">
+    {% block content %}
+    {% endblock %}
+</main>
 
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0/dist/js/bootstrap.bundle.min.js"
