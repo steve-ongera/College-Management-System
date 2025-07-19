@@ -1109,3 +1109,34 @@ def get_room_bed_availability(room):
     
     return bed_info
 
+
+# New model for tracking room changes and transfers
+class HostelRoomTransfer(models.Model):
+    TRANSFER_STATUS = (
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+        ('completed', 'Completed'),
+    )
+    
+    TRANSFER_REASON = (
+        ('maintenance', 'Room Maintenance'),
+        ('student_request', 'Student Request'),
+        ('administrative', 'Administrative'),
+        ('disciplinary', 'Disciplinary'),
+        ('medical', 'Medical'),
+    )
+    
+    student = models.ForeignKey('Student', on_delete=models.CASCADE, related_name='room_transfers')
+    from_bed = models.ForeignKey(HostelBed, on_delete=models.CASCADE, related_name='transfers_from')
+    to_bed = models.ForeignKey(HostelBed, on_delete=models.CASCADE, related_name='transfers_to')
+    transfer_date = models.DateField()
+    reason = models.CharField(max_length=20, choices=TRANSFER_REASON)
+    status = models.CharField(max_length=20, choices=TRANSFER_STATUS, default='pending')
+    requested_by = models.ForeignKey('User', on_delete=models.CASCADE, related_name='requested_transfers')
+    approved_by = models.ForeignKey('User', on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_transfers')
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"{self.student.student_id} - {self.from_bed.bed_name} to {self.to_bed.bed_name}"

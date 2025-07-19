@@ -1,0 +1,69 @@
+<!-- Alternative template using enhanced filter -->
+{% extends 'admin_base.html' %}
+{% load hostel_extras %}
+
+{% block title %}Hostel Management - Overview{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>Hostel Management System</h1>
+    
+    <div class="row">
+        <div class="col-md-6">
+            <h2>Academic Years</h2>
+            <ul>
+                {% for year in academic_years %}
+                <li>
+                    <a href="{% url 'year_view' year.id %}">
+                        {{ year.year }}
+                        {% if year.is_current %}(Current){% endif %}
+                    </a>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        
+        <div class="col-md-6">
+            <h2>Quick Actions</h2>
+            <ul>
+                <li><a href="{% url 'all_bookings' %}">View All Bookings</a></li>
+            </ul>
+        </div>
+    </div>
+    
+    <h2>Hostel Summary</h2>
+    <table border="1" cellpadding="5" cellspacing="0">
+        <thead>
+            <tr>
+                <th>Hostel Name</th>
+                <th>Type</th>
+                <th>Total Rooms</th>
+                <th>Available Rooms</th>
+                <th>Occupied Rooms</th>
+                <th>Total Beds</th>
+                <th>Available Beds</th>
+                <th>Occupied Beds</th>
+                <th>Warden</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for hostel in hostels %}
+            <tr>
+                <td>{{ hostel.name }}</td>
+                <td>{{ hostel.get_hostel_type_display }}</td>
+                <td>{{ hostel_stats|get_hostel_stat:hostel.id|add:",total_rooms"|default:hostel.total_rooms }}</td>
+                <td>{{ hostel_stats|get_hostel_stat:hostel.id|add:",available_rooms"|default:hostel.available_rooms }}</td>
+                <td>{{ hostel_stats|get_hostel_stat:hostel.id|add:",occupied_rooms"|default:hostel.occupied_rooms }}</td>
+                <td>{{ hostel_stats|get_hostel_stat:hostel.id|add:",total_beds"|default:hostel.total_beds }}</td>
+                <td>{{ hostel_stats|get_hostel_stat:hostel.id|add:",available_beds"|default:hostel.available_beds }}</td>
+                <td>{{ hostel_stats|get_hostel_stat:hostel.id|add:",occupied_beds"|default:hostel.occupied_beds }}</td>
+                <td>{{ hostel.warden|default:"Not Assigned" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+    <h2>Hostels by Academic Year</h2>
+    <p>Click on an academic year above to view hostel bookings for that year.</p>
+</div>
+{% endblock %}

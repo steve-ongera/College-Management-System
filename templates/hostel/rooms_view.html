@@ -1,0 +1,83 @@
+<!-- templates/hostel/rooms_view.html -->
+{% extends 'base.html' %}
+
+{% block title %}{{ hostel.name }} - Rooms{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>{{ hostel.name }} - Rooms ({{ academic_year.year }})</h1>
+    
+    <nav>
+        <a href="{% url 'hostel:year_view' academic_year.id %}">← Back to Year View</a>
+    </nav>
+    
+    <div class="hostel-info">
+        <h2>Hostel Information</h2>
+        <p><strong>Name:</strong> {{ hostel.name }}</p>
+        <p><strong>Type:</strong> {{ hostel.get_hostel_type_display }}</p>
+        <p><strong>Total Rooms:</strong> {{ hostel.total_rooms }}</p>
+        <p><strong>Warden:</strong> {{ hostel.warden|default:"Not Assigned" }}</p>
+    </div>
+    
+    <h2>Rooms</h2>
+    <table border="1" cellpadding="5" cellspacing="0">
+        <thead>
+            <tr>
+                <th>Room Number</th>
+                <th>Room Name</th>
+                <th>Floor</th>
+                <th>Total Beds</th>
+                <th>Available Beds</th>
+                <th>Occupied Beds</th>
+                <th>Approved Bookings</th>
+                <th>Pending Bookings</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for data in room_data %}
+            <tr>
+                <td>{{ data.room.room_number }}</td>
+                <td>{{ data.room.room_name }}</td>
+                <td>{{ data.room.floor }}</td>
+                <td>{{ data.total_beds }}</td>
+                <td>{{ data.available_beds }}</td>
+                <td>{{ data.occupied_beds }}</td>
+                <td>{{ data.approved_bookings }}</td>
+                <td>{{ data.pending_bookings }}</td>
+                <td>
+                    <a href="{% url 'hostel:room_detail' data.room.id academic_year.id %}">
+                        View Details
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+    {% if not room_data %}
+    <p>No rooms found for this hostel.</p>
+    {% endif %}
+    
+    <h2>Current Bookings</h2>
+    <table border="1" cellpadding="5" cellspacing="0">
+        <thead>
+            <tr>
+                <th>Student ID</th>
+                <th>Student Name</th>
+                <th>Room</th>
+                <th>Bed</th>
+                <th>Status</th>
+                <th>Booking Date</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for data in room_data %}
+                {% for booking in data.bookings %}
+                <tr>
+                    <td>{{ booking.student.student_id }}</td>
+                    <td>{{ booking.student.user.get_full_name }}</td>
+                    <td>{{ booking.bed.room.room_name }}</td>
+                    <td>{{ booking.bed.bed_name }}</td>
+                    <td>{{ booking.get}}
+                        

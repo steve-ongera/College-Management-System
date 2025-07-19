@@ -4257,3 +4257,251 @@ def delete_semester(request, semester_id):
             messages.error(request, f'Error deleting semester: {str(e)}')
     
     return redirect('academic_year_management')
+
+
+# views.py
+from django.shortcuts import render, get_object_or_404
+from django.contrib.auth.decorators import login_required
+from django.http import Http404
+from django.db.models import Count, Q
+from .models import (
+    Hostel, HostelRoom, HostelBed, HostelBooking, 
+    AcademicYear, Student, HostelRoomTransfer
+)
+
+
+@login_required
+def hostel_overview(request):
+    """Main hostel overview showing all hostels and academic years"""
+    hostels = Hostel.objects.filter(is_active=True).order_by('name')
+    academic_years = AcademicYear.objects.all().order_by('-year')
+    
+    # Get booking statistics
+    hostel_stats = {}
+    for hostel in hostels:
+        stats = {
+            'total_rooms': hostel.total_rooms,
+            'available_rooms': hostel.available_rooms,
+            'occupied_rooms': hostel.occupied_rooms,
+            'total_beds': hostel.total_beds,
+            'available_beds': hostel.available_beds,
+            'occupied_beds': hostel.occupied_beds,
+        }
+        hostel_stats[hostel.id] = stats
+    
+    context = {
+        'hostels': hostels,
+        'academic_years': academic_years,
+        'hostel_stats': hostel_stats,
+    }
+    return render(request, 'hostel/overview.html', context)
+
+
+@login_required
+def hostel_year_view(request, year_id):
+    """View hostels for a specific academic year"""
+    academic_year = get_object_or_404(AcademicYear, id=year_id)
+    hostels = Hostel.objects.filter(is_active=True).order_by('name')
+    
+    # Get booking statistics for this year
+    hostel_data = []
+    for hostel in hostels:
+        # Get bookings for this hostel in this academic year
+        bookings = HostelBooking.objects.filter(
+            bed__room__hostel=hostel,
+            academic_year=academic_year
+        )
+        
+        approved_bookings = bookings.filter(status='approved')
+        pending_bookings = bookings.filter(status='pending')
+        
+        hostel_info = {
+            'hostel': hostel,
+            'total_bookings': bookings.count(),
+            'approved_bookings': approved_bookings.count(),
+            'pending_bookings': pending_bookings.count(),
+            'available_beds': hostel.available_beds,
+            'occupied_beds': hostel.occupied_beds,
+        }
+        hostel_data.append(hostel_info)
+    
+    context = {
+        'academic_year': academic_year,
+        'hostel_data': hostel_data,
+    }
+    return render(request, 'hostel/year_view.html', context)
+
+
+@login_required
+def hostel_rooms_view(request, hostel_id, year_id):
+    """View all rooms in a specific hostel for a specific year"""
+    hostel = get_object_or_404(Hostel, id=hostel_id, is_active=True)
+    academic_year = get_object_or_404(AcademicYear, id=year_id)
+    
+    # Get all rooms for this hostel
+    rooms = HostelRoom.objects.filter(hostel=hostel).order_by('floor', 'room_number')
+    
+    room_data = []
+    for room in rooms:
+        # Get bookings for this room in this academic year
+        bookings = HostelBooking.objects.filter(
+            bed__room=room,
+            academic_year=academic_year
+        ).select_related('student__user', 'bed')
+        
+        approved_bookings = bookings.filter(status='approved')
+        pending_bookings = bookings.filter(status='pending')
+        
+        room_info = {
+            'room': room,
+            'total_beds': room.total_beds,
+            'available_beds': room.available_beds,
+            'occupied_beds': room.occupied_beds,
+            'approved_bookings': approved_bookings.count(),
+            'pending_bookings': pending_bookings.count(),
+            'bookings': bookings.order_by('bed__bed_number'),
+        }
+        room_data.append(room_info)
+    
+    context = {
+        'hostel': hostel,
+        'academic_year': academic_year,
+        'room_data': room_data,
+    }
+    return render(request, 'hostel/rooms_view.html', context)
+
+
+@login_required
+def room_detail_view(request, room_id, year_id):
+    """Detailed view of a specific room showing all beds and bookings"""
+    room = get_object_or_404(HostelRoom, id=room_id)
+    academic_year = get_object_or_404(AcademicYear, id=year_id)
+    
+    # Get all beds in this room
+    beds = HostelBed.objects.filter(room=room).order_by('bed_number')
+    
+    bed_data = []
+    for bed in beds:
+        # Get booking for this bed in this academic year
+        booking = HostelBooking.objects.filter(
+            bed=bed,
+            academic_year=academic_year
+        ).select_related('student__user').first()
+        
+        # Get all bookings history for this bed
+        booking_history = HostelBooking.objects.filter(
+            bed=bed,
+            academic_year=academic_year
+        ).select_related('student__user').order_by('-booking_date')
+        
+        bed_info = {
+            'bed': bed,
+            'current_booking': booking,
+            'booking_history': booking_history,
+            'is_available': bed.is_available,
+            'is_maintenance': bed.is_maintenance,
+        }
+        bed_data.append(bed_info)
+    
+    context = {
+        'room': room,
+        'academic_year': academic_year,
+        'bed_data': bed_data,
+    }
+    return render(request, 'hostel/admin-room_detail.html', context)
+
+
+@login_required
+def all_bookings_view(request):
+    """View all bookings across all hostels and years"""
+    # Get filter parameters
+    hostel_id = request.GET.get('hostel')
+    year_id = request.GET.get('year')
+    status = request.GET.get('status')
+    
+    # Base queryset
+    bookings = HostelBooking.objects.select_related(
+        'student__user', 'bed__room__hostel', 'academic_year'
+    ).order_by('-booking_date')
+    
+    # Apply filters
+    if hostel_id:
+        bookings = bookings.filter(bed__room__hostel__id=hostel_id)
+    if year_id:
+        bookings = bookings.filter(academic_year__id=year_id)
+    if status:
+        bookings = bookings.filter(status=status)
+    
+    # Get filter options
+    hostels = Hostel.objects.filter(is_active=True).order_by('name')
+    academic_years = AcademicYear.objects.all().order_by('-year')
+    
+    # Pagination (optional)
+    from django.core.paginator import Paginator
+    paginator = Paginator(bookings, 50)  # Show 50 bookings per page
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    context = {
+        'bookings': page_obj,
+        'hostels': hostels,
+        'academic_years': academic_years,
+        'current_filters': {
+            'hostel': hostel_id,
+            'year': year_id,
+            'status': status,
+        },
+        'status_choices': HostelBooking.BOOKING_STATUS,
+    }
+    return render(request, 'hostel/all_bookings.html', context)
+
+
+@login_required
+def booking_detail_view(request, booking_id):
+    """Detailed view of a specific booking"""
+    booking = get_object_or_404(
+        HostelBooking.objects.select_related(
+            'student__user', 'bed__room__hostel', 'academic_year', 'approved_by'
+        ),
+        id=booking_id
+    )
+    
+    # Get related transfers
+    transfers = HostelRoomTransfer.objects.filter(
+        student=booking.student
+    ).order_by('-created_at')
+    
+    # Get payment history if exists
+    payments = booking.fee_payments.all().order_by('-payment_date')
+    
+    context = {
+        'booking': booking,
+        'transfers': transfers,
+        'payments': payments,
+    }
+    return render(request, 'hostel/booking_detail.html', context)
+
+
+@login_required
+def student_hostel_history(request, student_id):
+    """View all hostel bookings for a specific student"""
+    student = get_object_or_404(Student, id=student_id)
+    
+    # Get all bookings for this student
+    bookings = HostelBooking.objects.filter(
+        student=student
+    ).select_related(
+        'bed__room__hostel', 'academic_year'
+    ).order_by('-booking_date')
+    
+    # Get transfers
+    transfers = HostelRoomTransfer.objects.filter(
+        student=student
+    ).order_by('-created_at')
+    
+    context = {
+        'student': student,
+        'bookings': bookings,
+        'transfers': transfers,
+    }
+    return render(request, 'hostel/student_history.html', context)

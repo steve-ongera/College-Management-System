@@ -79,6 +79,15 @@ urlpatterns = [
     path('hostel/booking/<int:booking_id>/cancel/', views.cancel_booking, name='cancel_booking'),
     path('hostel/quick-booking/', views.quick_bed_booking, name='quick_bed_booking'),
 
+    # Main hostel overview
+    path('hoste/overview/', views.hostel_overview, name='overview'),
+    path('year/<int:year_id>/', views.hostel_year_view, name='year_view'),
+    path('hostel/<int:hostel_id>/year/<int:year_id>/', views.hostel_rooms_view, name='rooms_view'),
+    path('room/<int:room_id>/year/<int:year_id>/', views.room_detail_view, name='room_detail'),
+    path('bookings/', views.all_bookings_view, name='all_bookings'),
+    path('booking/<int:booking_id>/', views.booking_detail_view, name='booking_detail'),
+    path('student/<int:student_id>/history/', views.student_hostel_history, name='student_history'),
+
     # Admin Hostel Management
     path('admin/hostel/bookings/', views.admin_hostel_bookings, name='admin_hostel_bookings'),
     path('admin/hostel/booking/<int:booking_id>/approve/', views.admin_approve_booking, name='admin_approve_booking'),
