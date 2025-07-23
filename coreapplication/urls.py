@@ -158,4 +158,9 @@ urlpatterns = [
     path('enrollments/', views.enrollment_list_view, name='enrollment_list'),
     path('enrollments/student/<str:student_id>/', views.student_enrollment_detail_view, name='student_enrollment_detail'),
 
+    path('records/', views.fee_record_list, name='fee_record_list'),
+    path('records/<str:student_id>/', views.fee_record_detail, name='fee_record_detail'),
+    path('payment/add/', views.add_fee_payment, name='add_fee_payment'),
+    path('structure/get/', views.get_fee_structure, name='get_fee_structure'),
+
  ]
