@@ -154,4 +154,8 @@ urlpatterns = [
     path('admin-toggle-current-semester/<int:semester_id>/', views.toggle_current_semester, name='toggle_current_semester'),
     path('admin-delete-semester/<int:semester_id>/', views.delete_semester, name='delete_semester'),
 
+    # Enrollment Management URLs
+    path('enrollments/', views.enrollment_list_view, name='enrollment_list'),
+    path('enrollments/student/<str:student_id>/', views.student_enrollment_detail_view, name='student_enrollment_detail'),
+
  ]

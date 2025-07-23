@@ -4505,3 +4505,152 @@ def student_hostel_history(request, student_id):
         'transfers': transfers,
     }
     return render(request, 'hostel/student_history.html', context)
+
+
+
+from django.shortcuts import render, get_object_or_404
+from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
+from django.db.models import Q, Count, Prefetch
+from .models import Student, Enrollment, Course, AcademicYear, Semester, Subject
+
+@login_required
+def enrollment_list_view(request):
+    """
+    Display grouped enrollments by student with filters and search
+    """
+    # Get filter parameters
+    search_query = request.GET.get('search', '')
+    course_filter = request.GET.get('course', '')
+    year_filter = request.GET.get('year', '')
+    semester_filter = request.GET.get('semester', '')
+    status_filter = request.GET.get('status', '')
+    
+    # Base queryset - get students with their enrollments
+    students_query = Student.objects.select_related(
+        'user', 'course', 'course__department'
+    ).prefetch_related(
+        Prefetch(
+            'enrollments',
+            queryset=Enrollment.objects.select_related(
+                'subject', 'semester', 'semester__academic_year'
+            ).filter(is_active=True).order_by(
+                'semester__academic_year__year', 'semester__semester_number'
+            )
+        )
+    ).annotate(
+        total_enrollments=Count('enrollments', filter=Q(enrollments__is_active=True))
+    ).filter(total_enrollments__gt=0)
+    
+    # Apply filters
+    if search_query:
+        students_query = students_query.filter(
+            Q(student_id__icontains=search_query) |
+            Q(user__first_name__icontains=search_query) |
+            Q(user__last_name__icontains=search_query) |
+            Q(user__username__icontains=search_query)
+        )
+    
+    if course_filter:
+        students_query = students_query.filter(course_id=course_filter)
+    
+    if status_filter:
+        students_query = students_query.filter(status=status_filter)
+    
+    if year_filter:
+        students_query = students_query.filter(
+            enrollments__semester__academic_year_id=year_filter
+        )
+    
+    if semester_filter:
+        students_query = students_query.filter(
+            enrollments__semester_id=semester_filter
+        )
+    
+    # Get data for filter dropdowns
+    courses = Course.objects.filter(is_active=True).order_by('name')
+    academic_years = AcademicYear.objects.all().order_by('-year')
+    semesters = Semester.objects.select_related('academic_year').order_by(
+        '-academic_year__year', 'semester_number'
+    )
+    
+    # Pagination
+    paginator = Paginator(students_query.distinct(), 10)
+    page_number = request.GET.get('page')
+    students = paginator.get_page(page_number)
+    
+    context = {
+        'students': students,
+        'courses': courses,
+        'academic_years': academic_years,
+        'semesters': semesters,
+        'search_query': search_query,
+        'course_filter': course_filter,
+        'year_filter': year_filter,
+        'semester_filter': semester_filter,
+        'status_filter': status_filter,
+        'status_choices': Student.STATUS_CHOICES,
+    }
+    
+    return render(request, 'enrollments/enrollment_list.html', context)
+
+
+@login_required
+def student_enrollment_detail_view(request, student_id):
+    """
+    Display detailed enrollment information for a specific student
+    organized by academic year and semester
+    """
+    student = get_object_or_404(
+        Student.objects.select_related('user', 'course', 'course__department'),
+        student_id=student_id
+    )
+    
+    # Get all enrollments for this student grouped by academic year and semester
+    enrollments = Enrollment.objects.filter(
+        student=student, is_active=True
+    ).select_related(
+        'subject', 'semester', 'semester__academic_year'
+    ).order_by(
+        'semester__academic_year__year',
+        'semester__semester_number',
+        'subject__name'
+    )
+    
+    # Group enrollments by academic year and semester
+    enrollment_data = {}
+    total_credits = 0
+    
+    for enrollment in enrollments:
+        year = enrollment.semester.academic_year.year
+        sem_num = enrollment.semester.semester_number
+        
+        if year not in enrollment_data:
+            enrollment_data[year] = {}
+        
+        if sem_num not in enrollment_data[year]:
+            enrollment_data[year][sem_num] = {
+                'semester': enrollment.semester,
+                'enrollments': [],
+                'total_credits': 0,
+                'total_subjects': 0
+            }
+        
+        enrollment_data[year][sem_num]['enrollments'].append(enrollment)
+        enrollment_data[year][sem_num]['total_credits'] += enrollment.subject.credits
+        enrollment_data[year][sem_num]['total_subjects'] += 1
+        total_credits += enrollment.subject.credits
+    
+    # Calculate summary statistics
+    total_subjects = enrollments.count()
+    total_years = len(enrollment_data)
+    
+    context = {
+        'student': student,
+        'enrollment_data': enrollment_data,
+        'total_subjects': total_subjects,
+        'total_credits': total_credits,
+        'total_years': total_years,
+    }
+    
+    return render(request, 'enrollments/student_enrollment_detail.html', context)
