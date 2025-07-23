@@ -4816,10 +4816,10 @@ def fee_record_detail(request, student_id):
             structure_data[year_key] = {}
         structure_data[year_key][structure.semester] = structure
     
-    # Calculate payment summary for each year/semester
-    summary_data = {}
+    # Calculate payment summary for each year/semester and prepare for template
+    summary_data_list = []
     for year_key in structure_data:
-        summary_data[year_key] = {}
+        year_semesters = []
         for semester in structure_data[year_key]:
             structure = structure_data[year_key][semester]
             paid_amount = 0
@@ -4829,12 +4829,25 @@ def fee_record_detail(request, student_id):
             
             outstanding = max(0, structure.total_fee() - paid_amount)
             
-            summary_data[year_key][semester] = {
+            semester_info = {
+                'semester_number': semester,
                 'structure': structure,
                 'paid': paid_amount,
                 'outstanding': outstanding,
                 'payments': payment_data.get(year_key, {}).get(semester, {}).get('payments', [])
             }
+            year_semesters.append(semester_info)
+        
+        # Find the academic year object for this year
+        academic_year_obj = next((ay for ay in academic_years if ay.year == year_key), None)
+        
+        summary_data_list.append({
+            'academic_year': academic_year_obj,
+            'semesters': year_semesters
+        })
+    
+    # Sort by academic year (most recent first)
+    summary_data_list.sort(key=lambda x: x['academic_year'].start_date if x['academic_year'] else datetime.min.date(), reverse=True)
     
     # Get payment methods and status choices for the form
     payment_methods = FeePayment.PAYMENT_METHODS
@@ -4843,7 +4856,7 @@ def fee_record_detail(request, student_id):
     context = {
         'student': student,
         'academic_years': academic_years,
-        'summary_data': summary_data,
+        'summary_data_list': summary_data_list,  # This replaces summary_data
         'payment_methods': payment_methods,
         'payment_status_choices': payment_status_choices,
         'recent_payments': fee_payments[:10]  # Last 10 payments for quick view
