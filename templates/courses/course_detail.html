@@ -283,6 +283,37 @@ document.addEventListener('DOMContentLoaded', function() {
         button.classList.add('active');
     }
     
+    // Activate the first tab and semester by default if none are active
+    function activateDefaultTabs() {
+        // Activate the first year tab if none are active
+        const yearTabs = document.querySelectorAll('#yearTabs .nav-link');
+        if (yearTabs.length > 0 && !Array.from(yearTabs).some(tab => tab.classList.contains('active'))) {
+            yearTabs[0].classList.add('active');
+            const yearPane = document.querySelector(yearTabs[0].getAttribute('data-bs-target'));
+            if (yearPane) {
+                yearPane.classList.add('show', 'active');
+            }
+        }
+        
+        // For each year tab content, activate the first semester if none are active
+        document.querySelectorAll('.tab-pane').forEach(yearPane => {
+            if (yearPane.classList.contains('active')) {
+                const semesterButtons = yearPane.querySelectorAll('.btn-outline-secondary');
+                if (semesterButtons.length > 0 && !Array.from(semesterButtons).some(btn => btn.classList.contains('active'))) {
+                    semesterButtons[0].classList.add('active');
+                    const firstSemesterId = semesterButtons[0].getAttribute('onclick').match(/'([^']+)'/)[1];
+                    const firstSemesterContent = document.getElementById(firstSemesterId);
+                    if (firstSemesterContent) {
+                        firstSemesterContent.classList.remove('d-none');
+                    }
+                }
+            }
+        });
+    }
+    
+    // Call the function to activate default tabs
+    activateDefaultTabs();
+    
     window.showSemester = showSemester;
 });
 </script>
