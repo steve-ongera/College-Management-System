@@ -249,7 +249,7 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Delete confirmation modal handling
+    // Delete confirmation modal handling (existing functionality)
     const deleteButton = document.getElementById('deleteCourseBtn');
     const deleteForm = document.getElementById('deleteForm');
     
@@ -264,6 +264,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
+    // Enhanced showSemester function
     function showSemester(semesterId, button) {
         // Hide all semester content in the current year
         const yearTab = button.closest('.tab-pane');
@@ -277,44 +278,112 @@ document.addEventListener('DOMContentLoaded', function() {
         semesterButtons.forEach(btn => btn.classList.remove('active'));
         
         // Show selected semester content
-        document.getElementById(semesterId).classList.remove('d-none');
+        const targetContent = document.getElementById(semesterId);
+        if (targetContent) {
+            targetContent.classList.remove('d-none');
+        }
         
         // Add active class to clicked button
         button.classList.add('active');
     }
     
-    // Activate the first tab and semester by default if none are active
-    function activateDefaultTabs() {
-        // Activate the first year tab if none are active
+    // Enhanced function to ensure tabs are properly activated
+    function ensureActiveTab() {
+        // First, handle year tabs
         const yearTabs = document.querySelectorAll('#yearTabs .nav-link');
-        if (yearTabs.length > 0 && !Array.from(yearTabs).some(tab => tab.classList.contains('active'))) {
+        const yearTabContents = document.querySelectorAll('#yearTabsContent .tab-pane');
+        
+        // Check if any year tab is active, if not activate the first one
+        let hasActiveYearTab = false;
+        yearTabs.forEach(tab => {
+            if (tab.classList.contains('active')) {
+                hasActiveYearTab = true;
+            }
+        });
+        
+        if (!hasActiveYearTab && yearTabs.length > 0) {
+            // Activate first year tab
             yearTabs[0].classList.add('active');
-            const yearPane = document.querySelector(yearTabs[0].getAttribute('data-bs-target'));
-            if (yearPane) {
-                yearPane.classList.add('show', 'active');
+            yearTabs[0].setAttribute('aria-selected', 'true');
+            
+            // Activate corresponding year content
+            const targetId = yearTabs[0].getAttribute('data-bs-target');
+            if (targetId) {
+                const targetContent = document.querySelector(targetId);
+                if (targetContent) {
+                    targetContent.classList.add('show', 'active');
+                }
             }
         }
         
-        // For each year tab content, activate the first semester if none are active
-        document.querySelectorAll('.tab-pane').forEach(yearPane => {
-            if (yearPane.classList.contains('active')) {
-                const semesterButtons = yearPane.querySelectorAll('.btn-outline-secondary');
-                if (semesterButtons.length > 0 && !Array.from(semesterButtons).some(btn => btn.classList.contains('active'))) {
+        // Now handle semester tabs for each year
+        yearTabContents.forEach(yearPane => {
+            const semesterButtons = yearPane.querySelectorAll('.btn-outline-secondary');
+            const semesterContents = yearPane.querySelectorAll('.semester-content');
+            
+            // Check if this year pane is active
+            if (yearPane.classList.contains('active') || yearPane.classList.contains('show')) {
+                // Check if any semester button is active in this year
+                let hasActiveSemesterTab = false;
+                semesterButtons.forEach(btn => {
+                    if (btn.classList.contains('active')) {
+                        hasActiveSemesterTab = true;
+                    }
+                });
+                
+                if (!hasActiveSemesterTab && semesterButtons.length > 0) {
+                    // Activate first semester button
                     semesterButtons[0].classList.add('active');
-                    const firstSemesterId = semesterButtons[0].getAttribute('onclick').match(/'([^']+)'/)[1];
-                    const firstSemesterContent = document.getElementById(firstSemesterId);
-                    if (firstSemesterContent) {
-                        firstSemesterContent.classList.remove('d-none');
+                    
+                    // Show corresponding semester content
+                    if (semesterContents.length > 0) {
+                        semesterContents[0].classList.remove('d-none');
                     }
                 }
             }
         });
     }
     
-    // Call the function to activate default tabs
-    activateDefaultTabs();
+    // Handle Bootstrap tab events to ensure semester tabs are activated when year changes
+    const yearTabElements = document.querySelectorAll('#yearTabs .nav-link');
+    yearTabElements.forEach(tabElement => {
+        tabElement.addEventListener('shown.bs.tab', function(event) {
+            const targetPaneId = event.target.getAttribute('data-bs-target');
+            const targetPane = document.querySelector(targetPaneId);
+            
+            if (targetPane) {
+                const semesterButtons = targetPane.querySelectorAll('.btn-outline-secondary');
+                const semesterContents = targetPane.querySelectorAll('.semester-content');
+                
+                // Check if any semester is active, if not activate the first one
+                let hasActiveSemester = false;
+                semesterButtons.forEach(btn => {
+                    if (btn.classList.contains('active')) {
+                        hasActiveSemester = true;
+                    }
+                });
+                
+                if (!hasActiveSemester && semesterButtons.length > 0) {
+                    semesterButtons[0].classList.add('active');
+                    if (semesterContents.length > 0) {
+                        // Hide all semester contents first
+                        semesterContents.forEach(content => content.classList.add('d-none'));
+                        // Show the first one
+                        semesterContents[0].classList.remove('d-none');
+                    }
+                }
+            }
+        });
+    });
     
+    // Initialize tabs on page load
+    ensureActiveTab();
+    
+    // Expose showSemester function globally
     window.showSemester = showSemester;
+    
+    // Additional safety check - run after a small delay to ensure Bootstrap is fully loaded
+    setTimeout(ensureActiveTab, 100);
 });
 </script>
 
