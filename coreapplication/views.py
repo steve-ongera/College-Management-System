@@ -452,6 +452,7 @@ def student_subjects(request):
     logger.info(f"Show registration: {show_registration}")
     logger.info(f"Available subjects count: {len(available_subjects)}")
     
+    
     context = {
         'student': student,
         'current_semester': current_semester,
@@ -461,6 +462,7 @@ def student_subjects(request):
         'curriculum': curriculum,
     }
     return render(request, 'student/subjects.html', context)
+
 
 # views.py
 from django.shortcuts import render, get_object_or_404

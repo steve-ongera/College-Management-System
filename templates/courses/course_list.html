@@ -104,7 +104,7 @@
                                     </td>
                                     <td>{{ course.duration_years }} Years</td>
                                     <td>{{ course.total_semesters }}</td>
-                                    <td>₹{{ course.fees_per_semester|floatformat:0 }}</td>
+                                    <td>ksh{{ course.fees_per_semester|floatformat:0 }}</td>
                                     <td>
                                         <div class="btn-group" role="group">
                                             <a href="{% url 'course_detail' course.id %}" class="btn btn-sm btn-outline-primary" title="View">
