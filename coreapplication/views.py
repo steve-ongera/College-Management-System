@@ -1389,6 +1389,11 @@ def student_reporting_list(request):
     }
     
     return render(request, 'student/reporting_list.html', context)
+from django.shortcuts import render, redirect
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.db.models import Count, Q, Sum
+from decimal import Decimal
 
 @login_required
 def student_report_current_semester(request):
@@ -1414,7 +1419,23 @@ def student_report_current_semester(request):
         messages.warning(request, f"You have already reported for {existing_report.semester_display}")
         return redirect('student_reporting_list')
     
+    # Check student eligibility before allowing reporting
+    can_report, reporting_issues = check_student_reporting_eligibility(student, current_semester)
+    
+    if not can_report:
+        # Display all issues that prevent reporting
+        for issue in reporting_issues:
+            messages.error(request, issue)
+        return redirect('student_reporting_list')
+    
     if request.method == 'POST':
+        # Double-check eligibility before creating record (security measure)
+        can_report_final, _ = check_student_reporting_eligibility(student, current_semester)
+        
+        if not can_report_final:
+            messages.error(request, "Eligibility check failed. Please contact the academic office.")
+            return redirect('student_reporting_list')
+        
         # Create new reporting record
         StudentReporting.objects.create(
             student=student,
@@ -1427,12 +1448,170 @@ def student_report_current_semester(request):
         messages.success(request, f"Successfully reported for {current_semester.academic_year.year} Semester {current_semester.semester_number}")
         return redirect('student_reporting_list')
     
+    # Get additional context for display
+    failed_units_count = get_failed_units_count_for_student(student, current_semester.academic_year)
+    fee_balance = get_outstanding_fee_balance(student, current_semester.academic_year)
+    
     context = {
         'current_semester': current_semester,
         'student': student,
+        'can_report': can_report,
+        'reporting_issues': reporting_issues,
+        'failed_units_count': failed_units_count,
+        'fee_balance': fee_balance,
     }
     
     return render(request, 'student/report_semester.html', context)
+
+
+def check_student_reporting_eligibility(student, current_semester):
+    """
+    Check if student is eligible to report for the current semester
+    Returns: (can_report: bool, issues: list)
+    """
+    issues = []
+    
+    # 1. Check if student status is active
+    if student.status != 'active':
+        issues.append(f"Your student status is '{student.get_status_display()}'. Only active students can report for sessions.")
+        return False, issues
+    
+    # 2. Check for failed units in current academic year
+    current_academic_year = current_semester.academic_year
+    failed_units_count = get_failed_units_count_for_student(student, current_academic_year)
+    
+    if failed_units_count > 2:
+        issues.append(f"You have {failed_units_count} failed units this academic year. Maximum allowed is 2 failed units to report for next session.")
+    
+    # 3. Check fee clearance for previous years since joining
+    fee_issues = check_previous_years_fee_clearance(student, current_academic_year)
+    if fee_issues:
+        issues.extend(fee_issues)
+    
+    can_report = len(issues) == 0
+    return can_report, issues
+
+
+def get_failed_units_count_for_student(student, academic_year):
+    """Get count of failed units for student in given academic year"""
+    # Get all enrollments for the academic year
+    enrollments = Enrollment.objects.filter(
+        student=student,
+        semester__academic_year=academic_year
+    )
+    
+    # Count failed units (grades with F or grade_points < 1.0 or is_passed=False)
+    failed_count = Grade.objects.filter(
+        enrollment__in=enrollments
+    ).filter(
+        Q(grade='F') | Q(grade_points__lt=1.0, grade_points__isnull=False) | Q(is_passed=False)
+    ).count()
+    
+    return failed_count
+    
+    return failed_count
+
+
+def check_previous_years_fee_clearance(student, current_academic_year):
+    """
+    Check if student has cleared fees for all previous years since joining school
+    """
+    issues = []
+    
+    # Get student's joining year from admission date
+    joining_year = student.admission_date.year
+    current_year = current_academic_year.start_date.year
+    
+    # Check each academic year since joining (excluding current year)
+    for year in range(joining_year, current_year):
+        # Construct academic year string (e.g., "2023-24")
+        academic_year_str = f"{year}-{str(year + 1)[-2:]}"
+        
+        try:
+            academic_year = AcademicYear.objects.get(year=academic_year_str)
+            
+            # Get fee structures for student's course in this academic year
+            fee_structures = FeeStructure.objects.filter(
+                course=student.course,
+                academic_year=academic_year
+            )
+            
+            for fee_structure in fee_structures:
+                # Calculate total fee required
+                total_fee_required = fee_structure.total_fee()
+                
+                # Calculate total amount paid for this fee structure
+                total_paid = FeePayment.objects.filter(
+                    student=student,
+                    fee_structure=fee_structure,
+                    payment_status='completed'
+                ).aggregate(
+                    total=Sum('amount_paid')
+                )['total'] or Decimal('0.00')
+                
+                # Check if there's any outstanding amount
+                outstanding = total_fee_required - total_paid
+                
+                if outstanding > 0:
+                    issues.append(
+                        f"Outstanding fee balance of KES {outstanding:,.2f} for {academic_year.year} "
+                        f"Semester {fee_structure.semester}. Please clear all previous year fees before reporting."
+                    )
+        
+        except AcademicYear.DoesNotExist:
+            # If academic year doesn't exist in system, skip
+            continue
+    
+    return issues
+
+
+def get_outstanding_fee_balance(student, academic_year=None):
+    """Get total outstanding fee balance for student for given academic year"""
+    if not academic_year:
+        current_semester = Semester.objects.filter(is_current=True).first()
+        if not current_semester:
+            return Decimal('0.00')
+        academic_year = current_semester.academic_year
+    
+    # Get fee structures for student's course in the academic year
+    fee_structures = FeeStructure.objects.filter(
+        course=student.course,
+        academic_year=academic_year
+    )
+    
+    total_required = sum(fs.total_fee() for fs in fee_structures)
+    
+    # Calculate total amount paid
+    total_paid = FeePayment.objects.filter(
+        student=student,
+        fee_structure__in=fee_structures,
+        payment_status='completed'
+    ).aggregate(
+        total=Sum('amount_paid')
+    )['total'] or Decimal('0.00')
+    
+    return max(Decimal('0.00'), Decimal(str(total_required)) - total_paid)
+
+
+# Helper function to get student's reporting eligibility summary
+def get_student_reporting_summary(student):
+    """Get a summary of student's reporting eligibility status"""
+    current_semester = Semester.objects.filter(is_current=True).first()
+    if not current_semester:
+        return None
+    
+    can_report, issues = check_student_reporting_eligibility(student, current_semester)
+    failed_units = get_failed_units_count_for_student(student, current_semester.academic_year)
+    fee_balance = get_outstanding_fee_balance(student, current_semester.academic_year)
+    
+    return {
+        'can_report': can_report,
+        'issues': issues,
+        'failed_units_count': failed_units,
+        'fee_balance': fee_balance,
+        'current_semester': current_semester,
+        'student_status': student.status,
+    }
 
 @login_required
 def admin_reporting_overview(request):
